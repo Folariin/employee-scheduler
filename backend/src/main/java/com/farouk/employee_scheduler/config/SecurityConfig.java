@@ -18,6 +18,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.util.Arrays;
 import java.util.List;
@@ -94,7 +95,16 @@ public class SecurityConfig {
                 .addFilterBefore(
                         new JwtAuthFilter(jwtService),
                         UsernamePasswordAuthenticationFilter.class
-                );
+                )
+
+                .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) ->
+                        response.sendError(
+                                HttpServletResponse.SC_UNAUTHORIZED,
+                                "Unauthorized"
+                        )
+                )
+        );
 
         return http.build();
     }

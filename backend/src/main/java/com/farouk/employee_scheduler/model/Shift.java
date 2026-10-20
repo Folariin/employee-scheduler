@@ -9,7 +9,7 @@ import java.util.UUID;
 @Table(name = "shift")
 public class Shift {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     private String Day;

@@ -4,6 +4,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.farouk.employee_scheduler.model.User;
 import com.farouk.employee_scheduler.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -44,7 +46,14 @@ public class UserService {
         return encoder.matches(rawPassword, passwordHash);
     }
 
-    public static class InvalidCredentialsException extends RuntimeException {}
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public static class InvalidCredentialsException
+            extends RuntimeException {
+
+        public InvalidCredentialsException() {
+            super("Invalid email or password");
+        }
+    }
 
 
 }
