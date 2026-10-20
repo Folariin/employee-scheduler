@@ -16,6 +16,7 @@ public class Employee {
     @JoinColumn(name = "user_id", unique = true)
     private User user;
 
+    @Column(nullable = false, unique = true)
     private String employeeNumber;
     private String phoneNumber;
     private LocalDate hireDate;
@@ -47,7 +48,7 @@ public class Employee {
         this.phoneNumber = phoneNumber;
     }
 
-    public void setHureDate(LocalDate hireDate) {
+    public void setHireDate(LocalDate hireDate) {
         this.hireDate = hireDate;
     }
 
