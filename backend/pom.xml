@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Keep the requested JUnit 5 line; Spring Boot 4 defaults to JUnit 6. -->
+		<junit-jupiter.version>5.14.4</junit-jupiter.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -108,6 +110,14 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!-- Load Mockito at JVM startup rather than attaching an agent at runtime. -->
+					<argLine>-javaagent:"${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar"</argLine>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
