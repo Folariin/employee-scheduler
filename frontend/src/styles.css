@@ -1923,3 +1923,14 @@ label small {
     font-size: 9px;
   }
 }
+
+/* Scheduling preview extends the existing modal and form components. */
+.generation-panel fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.generation-requirement { border-bottom: 1px solid var(--border, #e4e9f0); padding: 12px 0; margin-bottom: 12px; }
+.generation-panel .generation-check { display: flex; flex-direction: row; align-items: center; gap: 10px; margin: 12px 0; }
+.generation-check input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 18px; }
+.generation-suggestions { max-height: 220px; overflow: auto; }
+.generation-panel .notice { margin: 10px 0; }
+.generation-panel table { width: 100%; text-align: left; font-size: .85rem; border-collapse: collapse; }
+.generation-panel th, .generation-panel td { padding: 8px; border-bottom: 1px solid #e4e9f0; }
+.generation-panel caption { text-align: left; font-weight: 600; margin: 12px 0; }

@@ -71,3 +71,45 @@ export interface DateRange {
   startDate?: string;
   endDate?: string;
 }
+
+export interface StaffingRequirement {
+  date: string;
+  startTime: string;
+  endTime: string;
+  requiredEmployees: number;
+}
+export interface GenerationRequest {
+  requirements: StaffingRequirement[];
+  maxWeeklyHours: number;
+  balanceHoursFairly: boolean;
+}
+export interface GeneratedAssignment extends Omit<ShiftRequest, "employeeId"> {
+  employeeId: string;
+  displayName: string;
+  suggestionId: string;
+  requirementIndex: number;
+}
+export interface GenerationPreview {
+  previewToken: string;
+  scheduleId: string;
+  expiresAt: string;
+  assignments: GeneratedAssignment[];
+  coverage: (StaffingRequirement & {
+    requirementIndex: number;
+    existingEmployees: number;
+    suggestedEmployees: number;
+    shortage: number;
+    explanation: string;
+  })[];
+  workloads: {
+    employeeId: string;
+    displayName: string;
+    existingWeeklyHours: number;
+    proposedWeeklyHours: number;
+    resultingWeeklyHours: number;
+  }[];
+}
+export interface ApplyGenerationRequest {
+  previewToken: string;
+  suggestionIds: string[];
+}

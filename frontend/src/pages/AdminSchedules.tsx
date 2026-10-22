@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { useAction } from "../hooks/queries";
+import { GenerateSchedule } from "../features/schedules/GenerateSchedule";
 import { ShiftForm } from "../features/schedules/ShiftForm";
 import { WeeklyCalendar } from "../components/calendar/WeeklyCalendar";
 import {
@@ -199,6 +200,7 @@ export function ScheduleDetail() {
     queryFn: api.schedules,
   });
   const [form, setForm] = useState<Shift | "new" | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [deleting, setDeleting] = useState<Shift | null>(null);
   const [notice, setNotice] = useState("");
@@ -243,6 +245,7 @@ export function ScheduleDetail() {
         <Badge status={schedule.status} />
         {editable && (
           <>
+            <Button variant="secondary" onClick={() => setGenerating(true)}>Generate schedule</Button>
             <Button variant="secondary" onClick={() => setForm("new")}>
               <Plus size={17} />
               Assign shift
@@ -355,6 +358,8 @@ export function ScheduleDetail() {
           </div>
         </section>
       )}
+      {generating && editable && <GenerateSchedule key={id} scheduleId={id} week={schedule.weekStartDate}
+        onClose={() => setGenerating(false)} onSaved={() => { setGenerating(false); setNotice("Generated assignments applied to draft. Review the calendar before publishing."); }} />}
       {form && editable && (
         <ShiftForm
           key={form === "new" ? "new" : form.id}

@@ -186,3 +186,7 @@ Maven command and guarded disposable `availability_test` database requirement.
 
 No backend functionality, database migrations, CI/CD, or deployment configuration was
 changed for Stage 3.
+
+## Automatic scheduling
+
+Admins can generate and review staffing suggestions for draft weeks, then apply selected assignments without publishing. See [automatic scheduling](docs/automatic-scheduling.md) for API examples, validation, greedy fairness behavior, concurrency, preview-token limits and tests. This feature adds no database migration or persistent staffing-requirement table.

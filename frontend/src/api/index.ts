@@ -1,5 +1,8 @@
 import { request } from "./client";
 import type {
+  GenerationRequest,
+  GenerationPreview,
+  ApplyGenerationRequest,
   AuthResponse,
   Employee,
   CreateEmployee,
@@ -45,6 +48,10 @@ export const api = {
       `/admin/schedules/${encodeURIComponent(id)}/publish`,
       "POST",
     ),
+  generatePreview: (id: string, data: GenerationRequest) =>
+    request<GenerationPreview>(`/admin/schedules/${encodeURIComponent(id)}/generate-preview`, "POST", data),
+  applyGenerated: (id: string, data: ApplyGenerationRequest) =>
+    request<Shift[]>(`/admin/schedules/${encodeURIComponent(id)}/apply-generated`, "POST", data),
   createShift: (id: string, data: ShiftRequest) =>
     request<Shift>(
       `/admin/schedules/${encodeURIComponent(id)}/shifts`,

@@ -30,6 +30,8 @@ public interface ShiftRepository extends JpaRepository<Shift, UUID> {
 
     List<Shift> findByEmployeeId(UUID id);
 
+    List<Shift> findByShiftDateBetween(LocalDate start, LocalDate end);
+
     List<Shift> findByWeeklyScheduleIdOrderByShiftDateAscStartTimeAscIdAsc(UUID scheduleId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
