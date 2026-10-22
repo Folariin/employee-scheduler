@@ -28,6 +28,8 @@ public class WeeklySchedule {
 
     public WeeklySchedule(LocalDate weekStartDate) { this.weekStartDate = weekStartDate; }
 
+    public void publish() { this.status = ScheduleStatus.PUBLISHED; }
+
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
     public LocalDate getWeekStartDate() { return weekStartDate; }

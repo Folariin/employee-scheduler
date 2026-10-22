@@ -21,6 +21,9 @@ public class WeeklyScheduleController {
         return ResponseEntity.status(HttpStatus.CREATED).body(scheduleService.create(request));
     }
 
+    @PostMapping("/{id}/publish")
+    public WeeklyScheduleResponse publish(@PathVariable UUID id) { return scheduleService.publish(id); }
+
     @GetMapping
     public List<WeeklyScheduleResponse> findAll() { return scheduleService.findAll(); }
 

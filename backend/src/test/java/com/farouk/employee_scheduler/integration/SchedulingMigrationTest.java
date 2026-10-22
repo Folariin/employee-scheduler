@@ -43,6 +43,7 @@ class SchedulingMigrationTest {
         migrate("001_expand_weekly_schedules.sql"); migrate("002_finalize_dated_shifts.sql");
         assertEquals(5, scalar("select count(*) from pg_attribute where attrelid='migration_stage1.shift'::regclass and attname in ('employee_id','weekly_schedule_id','shift_date','start_time','end_time') and attnotnull"));
         assertEquals(1, scalar("select count(*) from pg_constraint where conrelid='migration_stage1.shift'::regclass and conname='ex_shift_employee_time'"));
+        migrate("003_publish_weekly_schedules.sql");
         assertDoesNotThrow(() -> new ShiftSchemaValidator(new JdbcTemplate(new SingleConnectionDataSource(connection, true))).afterSingletonsInstantiated());
     }
 
@@ -82,6 +83,59 @@ class SchedulingMigrationTest {
         assertEquals("23505", assertThrows(SQLException.class, () -> execute("insert into weekly_schedule (id,week_start_date) values (gen_random_uuid(),'2026-10-26')")).getSQLState());
         assertEquals("23514", assertThrows(SQLException.class, () -> execute("insert into weekly_schedule (id,week_start_date) values (gen_random_uuid(),'2026-10-27')")).getSQLState());
         assertEquals("23514", assertThrows(SQLException.class, () -> execute("insert into weekly_schedule (id,week_start_date,status) values (gen_random_uuid(),'2026-11-02','PUBLISHED')")).getSQLState());
+    }
+
+    @Test
+    void publicationMigrationPreservesRecordsAndAllowsBothStatuses() throws Exception {
+        seedLegacy(); migrate("001_expand_weekly_schedules.sql");
+        execute("insert into weekly_schedule (id,week_start_date) values ('" + SCHEDULE + "','2026-10-26')");
+        execute("update shift set shift_date='2026-10-26',weekly_schedule_id='"+SCHEDULE+"'");
+        migrate("002_finalize_dated_shifts.sql");
+        assertThrows(IllegalStateException.class, () -> new ShiftSchemaValidator(new JdbcTemplate(new SingleConnectionDataSource(connection,true))).afterSingletonsInstantiated());
+        String before;
+        try(var statement=connection.createStatement();var result=statement.executeQuery("select row_to_json(w)::text from weekly_schedule w")) { result.next(); before=result.getString(1); }
+        migrate("003_publish_weekly_schedules.sql"); migrate("003_publish_weekly_schedules.sql");
+        try(var statement=connection.createStatement();var result=statement.executeQuery("select row_to_json(w)::text from weekly_schedule w")) { result.next(); assertEquals(before,result.getString(1)); }
+        assertEquals(1,scalar("select count(*) from shift where id='"+SHIFT+"' and day='Monday' and start_time='09:00' and end_time='12:00' and employee_id='"+EMPLOYEE+"' and weekly_schedule_id='"+SCHEDULE+"' and shift_date='2026-10-26'"));
+        execute("update weekly_schedule set status='PUBLISHED'");
+        assertEquals("23514",assertThrows(SQLException.class,()->execute("update weekly_schedule set status='ARCHIVED'")).getSQLState());
+        assertDoesNotThrow(() -> new ShiftSchemaValidator(new JdbcTemplate(new SingleConnectionDataSource(connection,true))).afterSingletonsInstantiated());
+        execute("insert into weekly_schedule (id,week_start_date,status) values(gen_random_uuid(),'2026-11-02','DRAFT')");
+    }
+
+    @Test
+    void publicationMigrationReplacesHibernateDraftOnlyCheckToo() throws Exception {
+        migrate("001_expand_weekly_schedules.sql"); migrate("002_finalize_dated_shifts.sql");
+        execute("alter table weekly_schedule add constraint weekly_schedule_status_check check(status in ('DRAFT'))");
+        migrate("003_publish_weekly_schedules.sql");
+        execute("insert into weekly_schedule(id,week_start_date,status) values(gen_random_uuid(),'2026-10-26','PUBLISHED')");
+        assertEquals(1,scalar("select count(*) from pg_constraint where conrelid='weekly_schedule'::regclass and contype='c' and conname='ck_weekly_schedule_status'"));
+    }
+
+    @Test
+    void unknownStatusCheckStopsMigrationAndRollsBack() throws Exception {
+        migrate("001_expand_weekly_schedules.sql"); migrate("002_finalize_dated_shifts.sql");
+        execute("alter table weekly_schedule add constraint custom_status_rule check(status='DRAFT')");
+        assertThrows(SQLException.class,()->migrate("003_publish_weekly_schedules.sql"));
+        assertEquals(1,scalar("select count(*) from pg_constraint where conrelid='weekly_schedule'::regclass and conname='ck_weekly_schedule_draft'"));
+        assertThrows(IllegalStateException.class, () -> new ShiftSchemaValidator(new JdbcTemplate(new SingleConnectionDataSource(connection,true))).afterSingletonsInstantiated());
+    }
+
+    @Test
+    void invalidExistingStatusRollsBackPublicationMigrationWithoutChangingData() throws Exception {
+        migrate("001_expand_weekly_schedules.sql"); migrate("002_finalize_dated_shifts.sql");
+        execute("alter table weekly_schedule drop constraint ck_weekly_schedule_draft");
+        execute("insert into weekly_schedule(id,week_start_date,status) values('"+SCHEDULE+"','2026-10-26','ARCHIVED')");
+        assertEquals("23514",assertThrows(SQLException.class,()->migrate("003_publish_weekly_schedules.sql")).getSQLState());
+        assertEquals(1,scalar("select count(*) from weekly_schedule where id='"+SCHEDULE+"' and status='ARCHIVED'"));
+        assertEquals(0,scalar("select count(*) from pg_constraint where conrelid='weekly_schedule'::regclass and conname='ck_weekly_schedule_status'"));
+    }
+
+    @Test
+    void startupRejectsReinstatedDraftOnlyConstraintAfterPublicationMigration() throws Exception {
+        migrate("001_expand_weekly_schedules.sql"); migrate("002_finalize_dated_shifts.sql"); migrate("003_publish_weekly_schedules.sql");
+        execute("alter table weekly_schedule add constraint ck_weekly_schedule_draft check(status='DRAFT')");
+        assertThrows(IllegalStateException.class, () -> new ShiftSchemaValidator(new JdbcTemplate(new SingleConnectionDataSource(connection,true))).afterSingletonsInstantiated());
     }
 
     private void seedLegacy() throws Exception {
