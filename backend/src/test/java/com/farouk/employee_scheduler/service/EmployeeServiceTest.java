@@ -10,6 +10,9 @@ import com.farouk.employee_scheduler.repository.EmployeeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -168,5 +171,27 @@ class EmployeeServiceTest {
     void mapsEveryPublicResponseField() {
         assertEquals(new EmployeeResponse(id, user.getId(), "Ada", "Lovelace", "ada@example.com",
                 "EMP001", "2045550100", hireDate), service.toResponse(employee));
+    }
+
+    @Test
+    void authenticatedUserResolvesItsOwnEmployeeProfile() {
+        when(repository.findByUser_Id(user.getId())).thenReturn(Optional.of(employee));
+        assertSame(employee, service.findByUserId(user.getId().toString()));
+        verify(repository).findByUser_Id(user.getId());
+    }
+
+    @Test
+    void userWithoutEmployeeProfileReturns404() {
+        var exception = assertThrows(ResponseStatusException.class, () -> service.findByUserId(user.getId().toString()));
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"not-a-uuid", "   "})
+    void malformedAuthenticatedUserIdReturns401(String userId) {
+        var exception = assertThrows(ResponseStatusException.class, () -> service.findByUserId(userId));
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+        verifyNoInteractions(repository);
     }
 }

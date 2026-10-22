@@ -1,6 +1,7 @@
 package com.farouk.employee_scheduler.security;
 
 import jakarta.servlet.FilterChain;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -35,30 +36,29 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
             String token = header.substring(7);
 
-            if (jwtService.isValid(token)
-                    && SecurityContextHolder.getContext().getAuthentication() == null) {
+            try {
+                if (SecurityContextHolder.getContext().getAuthentication() == null
+                        && jwtService.isValid(token)) {
 
-                String userId = jwtService.extractUserId(token);
-                String role = jwtService.extractRole(token);
+                    String userId = jwtService.extractUserId(token);
+                    String role = jwtService.extractRole(token);
 
-                var authority =
-                        new SimpleGrantedAuthority("ROLE_" + role);
-
-                var authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userId,
-                                null,
-                                List.of(authority)
+                    if (userId != null && !userId.isBlank() && role != null && !role.isBlank()) {
+                        var authority = new SimpleGrantedAuthority("ROLE_" + role);
+                        var authentication = new UsernamePasswordAuthenticationToken(
+                                userId, null, List.of(authority)
                         );
 
-                authentication.setDetails(
-                        new WebAuthenticationDetailsSource()
-                                .buildDetails(request)
-                );
+                        authentication.setDetails(
+                                new WebAuthenticationDetailsSource().buildDetails(request)
+                        );
 
-                SecurityContextHolder
-                        .getContext()
-                        .setAuthentication(authentication);
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
+                }
+            } catch (JwtException | IllegalArgumentException exception) {
+                // A token can expire between validation and claim extraction.
+                // Leave the request anonymous so protected routes return 401.
             }
         }
 

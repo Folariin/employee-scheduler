@@ -11,10 +11,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DayOfWeek;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/availability")
@@ -30,8 +30,8 @@ public class AvailabilityController {
     public ResponseEntity<AvailabilityResponse> createAvailability(@AuthenticationPrincipal String userId, @Valid @RequestBody CreateAvailabilityRequest req) {
         Employee employee= employeeService.findByUserId(userId);
         Availability availability = new Availability(req.dayOfWeek(), req.startTime(), req.endTime(), employee);
-        availabilityService.save(availability);
-        AvailabilityResponse response= availabilityService.toResponse(availability);
+        Availability savedAvailability = availabilityService.save(availability);
+        AvailabilityResponse response= availabilityService.toResponse(savedAvailability);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
@@ -59,6 +59,13 @@ public class AvailabilityController {
             @PathVariable DayOfWeek dayOfWeek,
             @Valid @RequestBody CreateAvailabilityRequest req
     ) {
+
+        if (dayOfWeek != req.dayOfWeek()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Request dayOfWeek must match the URL dayOfWeek"
+            );
+        }
 
         Employee employee = employeeService.findByUserId(userId);
 

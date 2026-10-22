@@ -1,6 +1,6 @@
 # Backend tests
 
-Run the complete suite from `backend/` with Java 21:
+Run the database-free suite from `backend/` with Java 21:
 
 ```sh
 ./mvnw test
@@ -23,6 +23,18 @@ admin account are needed.
   `EmployeeService` and `JwtService` are mocked; filters are enabled. Bearer-token
   claims are controlled by the JWT mock, so these tests do not verify JWT signing
   or parsing.
+- `AvailabilityServiceTest`: validation, scoped lookup/update/delete, missing
+  records, duplicate checks, and PostgreSQL unique-violation translation.
+- `AvailabilityControllerTest`: MVC and the production security filter chain
+  with real signed JWTs, mocked services, request validation, response codes,
+  employee-only access, and agreement between PUT's URL and body day.
+- `JwtAuthFilterTest`: expiry during claim extraction, preservation of an
+  existing authentication, and propagation of downstream application errors.
+- `AvailabilityIntegrationTest`: real HTTP requests through the complete Spring
+  Boot application, signed JWTs, real services/repositories, and PostgreSQL.
+  Exercises CRUD persistence, cross-employee isolation, the database unique
+  constraint, eight concurrent creates, status codes, and time boundaries.
+  This class is skipped unless the database property below is supplied.
 
 The generated full-application `contextLoads` test was replaced by the MVC tests
 because it required PostgreSQL and runtime JWT configuration. JUnit Jupiter is
@@ -35,8 +47,37 @@ handling, validation, and security filters.
 Surefire loads Mockito as a Java agent at JVM startup. This avoids dynamic
 Java-agent attachment during test startup on Java 21.
 
-These tests verify behavior and repository interactions, not SQL constraints,
-JPA dirty checking, or transaction rollback. Before merging, run the suite in CI
-with Java 21. A separate PostgreSQL integration suite would be useful for account
-and employee transaction atomicity, update persistence, concurrent uniqueness
-conflicts, and deletion when an employee has related scheduling records.
+The database-free tests verify behavior and repository interactions. The opt-in
+availability integration tests below also verify SQL uniqueness and update/delete
+persistence. Before merging, run both suites in CI with Java 21. Additional
+employee-management integration coverage remains useful for account/employee
+transaction rollback and employee deletion with related scheduling records.
+
+## PostgreSQL availability integration tests
+
+Create a disposable PostgreSQL database named **availability_test**. The test
+application uses `create-drop` and clears its tables between tests. Never use the
+application database. The URL guard requires this database name to prevent an
+accidental run against `employee_scheduler`.
+
+Run all tests, including PostgreSQL integration tests:
+
+```sh
+./mvnw test "-Davailability.test.jdbc-url=jdbc:postgresql://127.0.0.1:55439/availability_test" "-Davailability.test.jdbc-user=postgres"
+```
+
+Use `mvnw.cmd` on Windows. Supply `-Davailability.test.jdbc-password=...` if the
+disposable database requires a password. PostgreSQL may run on another port;
+55439 is just the isolated local test port. No new dependencies, Docker, seeded
+admin, or externally configured JWT secret are required. The application server
+binds to a random port and is closed after the tests. Default `test` runs remain
+database-free.
+
+Availability accepts one interval per employee per weekday, with non-null times
+and `startTime < endTime`; equal, reversed, and overnight intervals return 400.
+PUT updates the specified day's times and requires its body `dayOfWeek` to match
+the URL; it does not move availability between weekdays. Availability routes
+require the EMPLOYEE role. An employee cannot select another owner via an ID in
+the body, URL, or query string. Duplicate days return 409, and missing employee
+profiles or missing days for update/delete return 404. A missing profile is
+different from an empty availability list, which returns 200 with `[]`.
