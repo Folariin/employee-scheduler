@@ -1,6 +1,7 @@
 package com.farouk.employee_scheduler.integration;
 
 import com.farouk.employee_scheduler.EmployeeSchedulerApplication;
+import com.farouk.employee_scheduler.support.SchedulingTestDatabaseConfig;
 import com.farouk.employee_scheduler.model.Availability;
 import com.farouk.employee_scheduler.model.Employee;
 import com.farouk.employee_scheduler.model.Role;
@@ -62,7 +63,7 @@ class AvailabilityIntegrationTest {
         // create-drop must never be pointed at the application database.
         assertTrue(jdbcUrl.matches("jdbc:postgresql://[^/]+/availability_test(?:\\?.*)?"),
                 "Use a dedicated database named availability_test; integration tests recreate its tables");
-        context = new SpringApplicationBuilder(EmployeeSchedulerApplication.class).run(
+        context = new SpringApplicationBuilder(EmployeeSchedulerApplication.class, SchedulingTestDatabaseConfig.class).run(
                 "--server.port=0",
                 "--spring.datasource.url=" + jdbcUrl,
                 "--spring.datasource.username=" + System.getProperty("availability.test.jdbc-user", "postgres"),
