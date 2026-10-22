@@ -128,3 +128,27 @@ script before the production schema validator runs. Migration tests independentl
 rebuild the legacy table shape in a temporary schema and prove preservation,
 refusal of unmapped/invalid rows, successful backfill, idempotence, and native
 constraints. None of this runs automatically against the application database.
+
+
+## Stage 2: allow schedule publication
+
+Before starting Stage 2, back up the database, stop older application instances,
+and apply migrations 001 and 002 if they have not already been applied. Then run:
+
+```sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f src/main/resources/db/migration/003_publish_weekly_schedules.sql
+```
+
+003 locks `weekly_schedule` for its short transaction. It replaces the Stage 1
+DRAFT-only check (and Hibernate's generated status check, when present) with the
+validated `ck_weekly_schedule_status` allowing DRAFT and PUBLISHED. It performs
+no data updates or deletes. Unknown status-only checks stop the migration for
+operator review rather than silently removing custom rules. Invalid stored
+statuses fail validation and roll back the transaction. The migration is rerunnable.
+The original 001 and 002 scripts remain unchanged; 003 is the explicit status upgrade.
+
+Application startup requires the new validated check and rejects additional
+status-only checks. Hibernate `validate` alone does not migrate native checks.
+Rollback to Stage 1 after publishing requires an explicit operator plan; no
+unpublish/down migration is provided. Runtime application credentials need no DDL
+privileges. These scripts are manually applied; no migration framework was added.

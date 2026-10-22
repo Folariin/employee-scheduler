@@ -18,6 +18,8 @@ public class SchedulingTestDatabaseConfig {
                     .getContentAsString(StandardCharsets.UTF_8);
             try (var connection = dataSource.getConnection(); var statement = connection.createStatement()) {
                 statement.execute(sql);
+                statement.execute(new ClassPathResource("db/migration/003_publish_weekly_schedules.sql")
+                        .getContentAsString(StandardCharsets.UTF_8));
             }
         };
     }

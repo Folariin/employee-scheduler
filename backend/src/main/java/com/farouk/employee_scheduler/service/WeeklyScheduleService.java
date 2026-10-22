@@ -2,12 +2,14 @@ package com.farouk.employee_scheduler.service;
 
 import com.farouk.employee_scheduler.dto.*;
 import com.farouk.employee_scheduler.model.WeeklySchedule;
+import com.farouk.employee_scheduler.model.ScheduleStatus;
 import com.farouk.employee_scheduler.repository.ShiftRepository;
 import com.farouk.employee_scheduler.repository.WeeklyScheduleRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.web.server.ResponseStatusException;
 import java.sql.SQLException;
 import java.time.DayOfWeek;
@@ -43,6 +45,23 @@ public class WeeklyScheduleService {
             }
             throw exception;
         }
+    }
+
+    // Every schedule mutation uses this row lock before acquiring any shift lock.
+    @Transactional(propagation = Propagation.MANDATORY)
+    public WeeklySchedule lockForModification(UUID id) {
+        return scheduleRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Weekly schedule not found"));
+    }
+
+    @Transactional
+    public WeeklyScheduleResponse publish(UUID id) {
+        WeeklySchedule schedule = lockForModification(id);
+        if (schedule.getStatus() != ScheduleStatus.DRAFT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Schedule is already published");
+        }
+        schedule.publish();
+        return toResponse(scheduleRepository.saveAndFlush(schedule));
     }
 
     @Transactional(readOnly = true)

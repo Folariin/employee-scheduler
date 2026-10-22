@@ -42,7 +42,7 @@ public class ShiftService {
 
     @Transactional
     public ShiftResponse create(UUID scheduleId, ShiftRequest request) {
-        WeeklySchedule schedule = scheduleService.findById(scheduleId);
+        WeeklySchedule schedule = scheduleService.lockForModification(scheduleId);
         Shift shift = new Shift();
         shift.setWeeklySchedule(schedule);
         applyAssignment(shift, request);
@@ -51,6 +51,7 @@ public class ShiftService {
 
     @Transactional
     public ShiftResponse update(UUID id, ShiftRequest request) {
+        lockDraftSchedule(id);
         Shift shift = shiftRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Shift not found"));
         applyAssignment(shift, request);
@@ -59,11 +60,18 @@ public class ShiftService {
 
     @Transactional
     public void delete(UUID id) {
+        lockDraftSchedule(id);
         Shift shift = shiftRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Shift not found"));
         requireDraft(shift.getWeeklySchedule());
         shiftRepository.delete(shift);
         shiftRepository.flush();
+    }
+
+    private void lockDraftSchedule(UUID shiftId) {
+        UUID scheduleId = shiftRepository.findScheduleIdById(shiftId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Shift not found"));
+        requireDraft(scheduleService.lockForModification(scheduleId));
     }
 
     private void applyAssignment(Shift shift, ShiftRequest request) {

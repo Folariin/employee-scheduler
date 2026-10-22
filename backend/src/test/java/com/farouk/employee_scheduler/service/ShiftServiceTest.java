@@ -49,7 +49,7 @@ class ShiftServiceTest {
         return new ShiftRequest(employeeId, monday, LocalTime.parse(start), LocalTime.parse(end));
     }
 
-    private void scheduleExists() { when(schedules.findById(scheduleId)).thenReturn(schedule); }
+    private void scheduleExists() { when(schedules.lockForModification(scheduleId)).thenReturn(schedule); }
 
     private void employeeAvailable() {
         when(employees.findById(employeeId)).thenReturn(Optional.of(employee));
@@ -96,7 +96,7 @@ class ShiftServiceTest {
 
     @Test
     void missingScheduleIs404() {
-        when(schedules.findById(scheduleId)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND));
+        when(schedules.lockForModification(scheduleId)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND));
         assertStatus(HttpStatus.NOT_FOUND, () -> service.create(scheduleId, request("10:00", "16:00")));
         verifyNoInteractions(employees, availability, shifts);
     }
@@ -159,6 +159,8 @@ class ShiftServiceTest {
         employeeAvailable(); saveReturnsAssignedId();
         var shift = new Shift(schedule, employee, monday, LocalTime.of(9, 0), LocalTime.of(12, 0));
         shift.setId(shiftId);
+        when(shifts.findScheduleIdById(shiftId)).thenReturn(Optional.of(scheduleId));
+        scheduleExists();
         when(shifts.findByIdForUpdate(shiftId)).thenReturn(Optional.of(shift));
         var response = service.update(shiftId, request("10:00", "16:00"));
         verify(shifts).existsOverlapping(employeeId, monday, LocalTime.of(10, 0), LocalTime.of(16, 0), shiftId);
@@ -171,6 +173,8 @@ class ShiftServiceTest {
     void updateReassignsEmployeeAndWeekdayWithSameRules() {
         var other = new Employee(); other.setId(UUID.randomUUID());
         var shift = new Shift(schedule, other, monday, LocalTime.of(9, 0), LocalTime.of(12, 0)); shift.setId(shiftId);
+        when(shifts.findScheduleIdById(shiftId)).thenReturn(Optional.of(scheduleId));
+        scheduleExists();
         when(shifts.findByIdForUpdate(shiftId)).thenReturn(Optional.of(shift));
         when(employees.findById(employeeId)).thenReturn(Optional.of(employee));
         when(availability.findByEmployee_IdAndDayOfWeek(employeeId, DayOfWeek.SUNDAY)).thenReturn(Optional.of(
@@ -185,6 +189,8 @@ class ShiftServiceTest {
     void rejectedUpdateDoesNotMutateExistingAssignment() {
         employeeAvailable();
         var shift = new Shift(schedule, employee, monday, LocalTime.of(9, 0), LocalTime.of(12, 0)); shift.setId(shiftId);
+        when(shifts.findScheduleIdById(shiftId)).thenReturn(Optional.of(scheduleId));
+        scheduleExists();
         when(shifts.findByIdForUpdate(shiftId)).thenReturn(Optional.of(shift));
         assertStatus(HttpStatus.CONFLICT, () -> service.update(shiftId, request("08:00", "12:00")));
         assertEquals(LocalTime.of(9, 0), shift.getStartTime());
@@ -203,19 +209,21 @@ class ShiftServiceTest {
     @Test
     void deletesOnlyShiftAndFlushes() {
         var shift = new Shift(schedule, employee, monday, LocalTime.of(9, 0), LocalTime.of(12, 0));
+        when(shifts.findScheduleIdById(shiftId)).thenReturn(Optional.of(scheduleId));
+        scheduleExists();
         when(shifts.findByIdForUpdate(shiftId)).thenReturn(Optional.of(shift));
         service.delete(shiftId);
         verify(shifts).delete(shift); verify(shifts).flush();
-        verifyNoInteractions(employees, availability, schedules);
+        verifyNoInteractions(employees, availability);
+        verify(schedules).lockForModification(scheduleId);
     }
 
     @Test
     void cannotCreateUpdateOrDeleteOutsideDraft() {
         var unsupported = mock(WeeklySchedule.class);
         when(unsupported.getStatus()).thenReturn(null);
-        when(schedules.findById(scheduleId)).thenReturn(unsupported);
-        var shift = new Shift(); shift.setWeeklySchedule(unsupported);
-        when(shifts.findByIdForUpdate(shiftId)).thenReturn(Optional.of(shift));
+        when(schedules.lockForModification(scheduleId)).thenReturn(unsupported);
+        when(shifts.findScheduleIdById(shiftId)).thenReturn(Optional.of(scheduleId));
         assertStatus(HttpStatus.CONFLICT, () -> service.create(scheduleId, request("10:00", "16:00")));
         assertStatus(HttpStatus.CONFLICT, () -> service.update(shiftId, request("10:00", "16:00")));
         assertStatus(HttpStatus.CONFLICT, () -> service.delete(shiftId));
