@@ -81,3 +81,26 @@ require the EMPLOYEE role. An employee cannot select another owner via an ID in
 the body, URL, or query string. Duplicate days return 409, and missing employee
 profiles or missing days for update/delete return 404. A missing profile is
 different from an empty availability list, which returns 200 with `[]`.
+
+## GitHub Actions CI
+
+`.github/workflows/backend-ci.yml` runs on pushes to `feature/**` branches and
+pull requests targeting `main`. It uses Temurin Java 21, caches Maven dependencies,
+and starts a disposable PostgreSQL 17 service with a readiness health check.
+The database name is `availability_test`, matching the integration test guard.
+Its credentials are test-only literals; no production secrets are needed.
+
+The job runs the existing Maven wrapper from `backend/` with `clean test` and
+the three `availability.test.jdbc-*` properties. This runs both the unit/MVC
+tests and PostgreSQL integration tests. It invokes `mvnw` through `sh` because
+the wrapper is tracked without executable permission. Maven's failure exit code
+fails the job; no test failures are ignored. There are no deployment steps.
+
+After reviewing, committing, and pushing the workflow on a feature branch, open
+the repository's **Actions** tab and select **Backend CI**. Check the Java setup,
+PostgreSQL service, and Maven test log. The current suite should report 208 tests
+with zero failures, errors, or skips, including 33 availability integration tests.
+Opening or updating a pull request targeting `main` should also show the check
+on the PR's **Checks** tab. A failed test or failed database startup must leave
+the check red. Repository Actions settings must allow the official checkout and
+setup-java actions.
