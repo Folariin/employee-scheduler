@@ -98,9 +98,51 @@ fails the job; no test failures are ignored. There are no deployment steps.
 
 After reviewing, committing, and pushing the workflow on a feature branch, open
 the repository's **Actions** tab and select **Backend CI**. Check the Java setup,
-PostgreSQL service, and Maven test log. The current suite should report 208 tests
-with zero failures, errors, or skips, including 33 availability integration tests.
+PostgreSQL service, and Maven test log. The Stage 1 suite should report 382 tests
+with zero failures, errors, or skips. This preserves the original 208-test baseline
+and adds scheduling and migration coverage.
 Opening or updating a pull request targeting `main` should also show the check
 on the PR's **Checks** tab. A failed test or failed database startup must leave
 the check red. Repository Actions settings must allow the official checkout and
 setup-java actions.
+
+## Stage 1 scheduling tests and migrations
+
+The same Java 21/Maven commands above discover all new test classes; CI's existing
+`availability.test.jdbc-*` properties enable both availability and scheduling
+integration tests. The existing workflow requires no changes.
+
+| New test class | Scope | Tests |
+|---|---|---:|
+| `WeeklyScheduleServiceTest` | DRAFT defaults, Monday validation, duplicate races, lookup/list/detail | 18 |
+| `ShiftServiceTest` | Assignment validation, availability coverage, overlap checks, updates, deletion, database-conflict mapping | 30 |
+| `SchedulingControllerTest` | DTO/HTTP contracts, malformed requests, real JWT/security filter chain, ADMIN-only routes | 62 |
+| `ShiftSchemaValidatorTest` | Fail-fast check for required native schema constraints | 2 |
+| `SchedulingIntegrationTest` | Full HTTP/JWT/services/JPA/PostgreSQL CRUD and concurrency | 57 |
+| `SchedulingMigrationTest` | Actual legacy expansion/backfill/finalization scripts in an isolated schema | 5 |
+
+The complete enabled suite has **382 tests**: 287 unit/MVC tests and 95 database
+integration invocations (33 availability, 57 scheduling, 5 migration). All existing
+208 tests remain. Without the JDBC property, database tests are intentionally
+skipped, including parameterized test templates.
+
+The integration role needs permission to install PostgreSQL's bundled
+`btree_gist` extension in the disposable test database. GitHub CI's PostgreSQL
+service user already has the necessary privileges. No Maven dependencies were
+added. `SchedulingTestDatabaseConfig` installs the same native shift-finalization
+SQL after Hibernate creates fresh test tables and before the production schema
+validator runs during context initialization, before the web server accepts
+requests. The availability integration application uses this test-only
+initializer too; its test cases are unchanged.
+
+For application databases, Hibernate now uses `ddl-auto=validate` and does not
+perform automatic migration. Apply the explicit additive/backfill/finalization
+steps in [db/MIGRATION.md](db/MIGRATION.md) while the application is stopped.
+The scripts keep legacy shift rows and their old weekday text; dates must be
+explicitly supplied when legacy shifts exist. Never point test `create-drop`
+configuration at an application database.
+
+See [docs/STAGE1_API.md](docs/STAGE1_API.md) for routes, examples, statuses,
+whole-second time precision, the half-open overlap rule, PostgreSQL exclusion
+constraint concurrency protection, and Stage 1 limitations. Publishing, employee
+visibility, overnight shifts, time-off integration, and deployment are not included.
