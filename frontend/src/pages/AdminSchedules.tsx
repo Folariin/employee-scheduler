@@ -359,6 +359,7 @@ export function ScheduleDetail() {
         </section>
       )}
       {generating && editable && <GenerateSchedule key={id} scheduleId={id} week={schedule.weekStartDate}
+        existingShifts={schedule.shifts} existingEmployeeNames={Object.fromEntries((employees.data || []).map(e => [e.id, fullName(e)]))}
         onClose={() => setGenerating(false)} onSaved={() => { setGenerating(false); setNotice("Generated assignments applied to draft. Review the calendar before publishing."); }} />}
       {form && editable && (
         <ShiftForm

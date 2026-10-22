@@ -35,7 +35,7 @@ public class AutomaticSchedulingService {
         var result=SchedulingAlgorithm.generate(schedule.getWeekStartDate(),request,state.employees(),state.availability(),state.busy());
         var preview=new GenerationPreview(UUID.randomUUID(),scheduleId,store.now().plus(GenerationPreviewStore.LIFETIME),
                 result.assignments(),result.coverage(),result.workloads());
-        var frozen=new GenerationRequest(List.copyOf(request.requirements()),request.maxWeeklyHours(),request.balanceHoursFairly());
+        var frozen=new GenerationRequest(List.copyOf(request.requirements()),request.maxWeeklyHours(),request.balanceHoursFairly(),request.minShiftMinutes(),request.maxShiftMinutes());
         store.put(new GenerationPreviewStore.Stored(owner,state.fingerprint(),frozen,preview));
         return preview;
     }
@@ -55,6 +55,16 @@ public class AutomaticSchedulingService {
         for(String id:request.suggestionIds()) selected.add(stored.preview().assignments().stream()
                 .filter(a->a.suggestionId().equals(id)).findFirst()
                 .orElseThrow(()->new ResponseStatusException(BAD_REQUEST,"Selection is not part of this preview")));
+        for(var assignment:selected) {
+            var requirement=stored.request().requirements().get(assignment.requirementIndex());
+            long length=SchedulingAlgorithm.duration(assignment.startTime(),assignment.endTime());
+            boolean flexible=requirement.mode()==GenerationRequest.Mode.FLEXIBLE;
+            if(!assignment.shiftDate().equals(requirement.date()) || assignment.startTime().isBefore(requirement.startTime())
+                    || assignment.endTime().isAfter(requirement.endTime()) || length<=0
+                    || (flexible && (length<stored.request().effectiveMinShiftMinutes()*60L || length>stored.request().effectiveMaxShiftMinutes()*60L))
+                    || (!flexible && (!assignment.startTime().equals(requirement.startTime()) || !assignment.endTime().equals(requirement.endTime()))))
+                throw new ResponseStatusException(CONFLICT,"Preview does not match its window/duration limits; generate a new preview");
+        }
         var seconds=new HashMap<UUID,Long>();
         for(var busy:current.busy())seconds.merge(busy.employeeId(),SchedulingAlgorithm.duration(busy.start(),busy.end()),Long::sum);
         for(var a:selected) {

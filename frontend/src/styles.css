@@ -1934,3 +1934,10 @@ label small {
 .generation-panel table { width: 100%; text-align: left; font-size: .85rem; border-collapse: collapse; }
 .generation-panel th, .generation-panel td { padding: 8px; border-bottom: 1px solid #e4e9f0; }
 .generation-panel caption { text-align: left; font-weight: 600; margin: 12px 0; }
+
+.generation-calendar { margin: 16px 0; border-top: 1px solid var(--border, #e4e9f0); padding-top: 12px; }
+.generation-calendar .calendar-desktop { max-height: 360px; overflow: auto; }
+.generation-calendar small { line-height: 1.35; }
+
+.modal.wide { width: min(1100px, calc(100vw - 32px)); max-width: 1100px; }
+.generation-calendar .shift-card.suggested { border-style: dashed; }

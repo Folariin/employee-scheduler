@@ -13,7 +13,7 @@ public record GenerationPreview(UUID previewToken, UUID scheduleId, Instant expi
                              LocalDate shiftDate, LocalTime startTime, LocalTime endTime) {}
     public record Coverage(int requirementIndex, LocalDate date, LocalTime startTime, LocalTime endTime,
                            int requiredEmployees, int existingEmployees, int suggestedEmployees,
-                           int shortage, String explanation) {}
+                           int shortage, String explanation, GenerationRequest.Mode mode) {}
     public record Workload(UUID employeeId, String displayName, BigDecimal existingWeeklyHours,
                            BigDecimal proposedWeeklyHours, BigDecimal resultingWeeklyHours) {}
 }

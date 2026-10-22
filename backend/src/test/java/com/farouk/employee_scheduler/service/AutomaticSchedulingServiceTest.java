@@ -62,4 +62,12 @@ class AutomaticSchedulingServiceTest {
         assertThrows(ResponseStatusException.class,()->service.apply(scheduleId,new ApplyGenerationRequest(UUID.randomUUID(),List.of("fake")),"admin"));
         verifyNoInteractions(shiftService);
     }
+    @Test void flexibleDurationOptionsRemainBoundToTheStoredPreviewAndApplyTimes() {
+        var flexible=new GenerationRequest(List.of(new GenerationRequest.Requirement(request.requirements().getFirst().date(),LocalTime.of(9,0),LocalTime.of(17,0),1,GenerationRequest.Mode.FLEXIBLE)),40,true,30,60);
+        var preview=service.preview(scheduleId,flexible,"admin");
+        assertEquals(60,store.get(preview.previewToken(),scheduleId,"admin").request().effectiveMaxShiftMinutes());
+        when(shiftService.create(eq(scheduleId),any())).thenReturn(new ShiftResponse(UUID.randomUUID(),scheduleId,employeeId,request.requirements().getFirst().date(),LocalTime.of(9,0),LocalTime.of(10,0)));
+        service.apply(scheduleId,new ApplyGenerationRequest(preview.previewToken(),List.of(preview.assignments().getFirst().suggestionId())),"admin");
+        verify(shiftService).create(scheduleId,new ShiftRequest(employeeId,request.requirements().getFirst().date(),LocalTime.of(9,0),LocalTime.of(10,0)));
+    }
 }

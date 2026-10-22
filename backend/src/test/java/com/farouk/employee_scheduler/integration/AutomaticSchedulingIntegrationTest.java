@@ -151,4 +151,82 @@ class AutomaticSchedulingIntegrationTest {
         status(400,send("generate-preview",original.replace("}],","},"+interval+"],")));
         status(404,send("/api/admin/schedules/"+UUID.randomUUID()+"/generate-preview",request(1),adminToken));
     }
+    private String flexibleRequest(int count,int min,int max) {
+        return request(count).replace("\"requiredEmployees\":"+count,"\"requiredEmployees\":"+count+",\"mode\":\"FLEXIBLE\"")
+                .replace("\"maxWeeklyHours\":40","\"maxWeeklyHours\":40,\"minShiftMinutes\":"+min+",\"maxShiftMinutes\":"+max);
+    }
+    private JsonNode flexiblePreview(int count,int min,int max) throws Exception {
+        var response=send("generate-preview",flexibleRequest(count,min,max));status(200,response);return json.readTree(response.body());
+    }
+    private void mondayAvailability(Employee employee,String start,String end) {
+        var window=availability.findByEmployee_IdAndDayOfWeek(employee.getId(),DayOfWeek.MONDAY).orElseThrow();
+        window.setStartTime(LocalTime.parse(start));window.setEndTime(LocalTime.parse(end));availability.saveAndFlush(window);
+    }
+    @Test void flexibleStaggeredPreviewIsReadOnlyAndAppliesActualIndividualTimes() throws Exception {
+        mondayAvailability(alice,"09:00","14:00");mondayAvailability(bob,"10:00","16:00");
+        var third=employee("Charlie","AUTO003");availability.saveAndFlush(new Availability(DayOfWeek.MONDAY,LocalTime.of(14,0),LocalTime.of(17,0),third));
+        long rows=availability.count();var preview=flexiblePreview(3,120,480);
+        assertEquals(3,preview.get("assignments").size());assertEquals(0,preview.get("coverage").get(0).get("shortage").asInt());
+        assertEquals("FLEXIBLE",preview.get("coverage").get(0).get("mode").asString());assertEquals(0,shifts.count());assertEquals(rows,availability.count());
+        status(200,send("apply-generated",selection(preview)));assertEquals(3,shifts.count());
+        for(var assignment:preview.get("assignments")) {
+            var stored=shifts.findByEmployeeId(UUID.fromString(assignment.get("employeeId").asString())).getFirst();
+            assertEquals(LocalTime.parse(assignment.get("startTime").asString()),stored.getStartTime());
+            assertEquals(LocalTime.parse(assignment.get("endTime").asString()),stored.getEndTime());
+        }
+        assertEquals(ScheduleStatus.DRAFT,schedules.findById(schedule.getId()).orElseThrow().getStatus());
+    }
+    @Test void flexibleLimitsGenerateShortagesAndConfiguredDurationsPersistWithoutRounding() throws Exception {
+        mondayAvailability(alice,"09:00","10:59:59");mondayAvailability(bob,"12:00","16:00");
+        var preview=flexiblePreview(2,120,180);assertEquals(1,preview.get("assignments").size());
+        assertEquals(1,preview.get("coverage").get(0).get("shortage").asInt());
+        assertEquals("12:00:00",preview.get("assignments").get(0).get("startTime").asString());
+        assertEquals("15:00:00",preview.get("assignments").get(0).get("endTime").asString());
+        status(200,send("apply-generated",selection(preview)));assertEquals(1,shifts.count());
+    }
+    @Test void flexibleAlreadyAssignedEmployeeCountsOnceWithoutReassignment() throws Exception {
+        var old=shifts.saveAndFlush(new Shift(schedule,alice,monday,LocalTime.of(9,0),LocalTime.of(10,0)));
+        var preview=flexiblePreview(2,120,480);assertEquals(1,preview.get("coverage").get(0).get("existingEmployees").asInt());
+        assertEquals(1,preview.get("assignments").size());assertEquals(bob.getId().toString(),preview.get("assignments").get(0).get("employeeId").asString());
+        status(200,send("apply-generated",selection(preview)));assertTrue(shifts.existsById(old.getId()));assertEquals(2,shifts.count());
+    }
+    @Test void flexibleBatchRollsBackOnSecondInsertAndRetryUsesTheSameDurationPolicy() throws Exception {
+        var preview=flexiblePreview(2,30,60);String second=preview.get("assignments").get(1).get("employeeId").asString();
+        jdbc.execute("create function test_generated_failure() returns trigger language plpgsql as $$ begin if NEW.employee_id='"+second+"'::uuid then raise exception 'test exclusion conflict' using errcode='23P01'; end if; return NEW; end $$");
+        jdbc.execute("create trigger test_generated_failure before insert on shift for each row execute function test_generated_failure()");
+        status(409,send("apply-generated",selection(preview)));assertEquals(0,shifts.count());
+        removeTrigger();status(200,send("apply-generated",selection(preview)));assertEquals(2,shifts.count());
+        for(var shift:shifts.findAll())assertEquals(3600,Duration.between(shift.getStartTime(),shift.getEndTime()).getSeconds());
+    }
+    @Test void flexibleStaleAndPublishedPreviewsAreStillRefused() throws Exception {
+        var preview=flexiblePreview(2,120,480);mondayAvailability(alice,"10:00","17:00");
+        status(409,send("apply-generated",selection(preview)));assertEquals(0,shifts.count());
+        var updated=flexiblePreview(2,120,480);status(200,send("publish",null));
+        status(409,send("apply-generated",selection(updated)));status(409,send("generate-preview",flexibleRequest(2,120,480)));
+    }
+    @Test void concurrentFlexibleApplicationsCommitOnlyOneBatch() throws Exception {
+        var first=flexiblePreview(2,120,480);var second=flexiblePreview(2,120,480);String endpoint=path("apply-generated"),token=adminToken;
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var gate=new CountDownLatch(1);
+            var a=pool.submit(()->{gate.await();return send(endpoint,selection(first),token).statusCode();});
+            var b=pool.submit(()->{gate.await();return send(endpoint,selection(second),token).statusCode();});gate.countDown();
+            var results=new ArrayList<>(List.of(a.get(40,TimeUnit.SECONDS),b.get(40,TimeUnit.SECONDS)));Collections.sort(results);
+            assertEquals(List.of(200,409),results);assertEquals(2,shifts.count());
+        }
+    }
+    @ParameterizedTest @ValueSource(strings={"generate-preview","apply-generated"})
+    void flexibleRequestsCannotBypassJwtRoles(String action) throws Exception {
+        String body=action.equals("generate-preview")?flexibleRequest(2,120,480):"{}";
+        status(401,send(path(action),body,null));status(403,send(path(action),body,employeeToken));assertEquals(0,shifts.count());
+    }
+    @ParameterizedTest @ValueSource(strings={"0,480","120,0","181,180","120,1441"})
+    void invalidFlexibleLimitsAre400(String pair) throws Exception {
+        var values=pair.split(",");status(400,send("generate-preview",flexibleRequest(1,Integer.parseInt(values[0]),Integer.parseInt(values[1]))));assertEquals(0,shifts.count());
+    }
+    @Test void unknownModeIs400AndOmittedModeRemainsFixed() throws Exception {
+        status(400,send("generate-preview",flexibleRequest(1,120,480).replace("FLEXIBLE","UNKNOWN")));
+        mondayAvailability(alice,"10:00","14:00");mondayAvailability(bob,"10:00","16:00");
+        assertEquals(2,preview(2).get("coverage").get(0).get("shortage").asInt());
+        assertEquals(0,flexiblePreview(2,120,480).get("coverage").get(0).get("shortage").asInt());
+    }
 }

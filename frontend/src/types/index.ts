@@ -72,13 +72,17 @@ export interface DateRange {
   endDate?: string;
 }
 
+export type SchedulingMode = "FIXED" | "FLEXIBLE";
 export interface StaffingRequirement {
+  mode?: SchedulingMode;
   date: string;
   startTime: string;
   endTime: string;
   requiredEmployees: number;
 }
 export interface GenerationRequest {
+  minShiftMinutes?: number;
+  maxShiftMinutes?: number;
   requirements: StaffingRequirement[];
   maxWeeklyHours: number;
   balanceHoursFairly: boolean;
