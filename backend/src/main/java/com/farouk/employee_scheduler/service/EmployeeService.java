@@ -120,5 +120,21 @@ public class EmployeeService {
         return employeeRepository.save(employee);
     }
 
+    public Employee findByUserId(String userId) {
+
+        UUID userUUID;
+        try {
+            userUUID = UUID.fromString(userId);
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user ID");
+        }
+
+        return employeeRepository.findByUser_Id(userUUID)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Employee not found for user ID: " + userId
+                ));
+    }
+
 
 }

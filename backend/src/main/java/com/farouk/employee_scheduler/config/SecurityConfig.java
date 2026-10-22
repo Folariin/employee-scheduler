@@ -90,6 +90,9 @@ public class SecurityConfig {
                         // Admin-only endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
+                        // Availability is managed only by the authenticated employee.
+                        .requestMatchers("/api/availability/**").hasRole("EMPLOYEE")
+
                         // Everything else requires login
                         .anyRequest().authenticated()
                 )

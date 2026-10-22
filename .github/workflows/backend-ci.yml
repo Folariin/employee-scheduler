@@ -1,0 +1,57 @@
+name: Backend CI
+
+on:
+  push:
+    branches: ['feature/**']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit and PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: availability_test
+          POSTGRES_USER: postgres
+          # Disposable CI database only; never use production credentials here.
+          POSTGRES_PASSWORD: ci_only_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d availability_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Run unit and integration tests
+        # mvnw is tracked without executable permission, so invoke it through sh.
+        run: >-
+          sh ./mvnw --batch-mode --no-transfer-progress clean test
+          -Davailability.test.jdbc-url=jdbc:postgresql://127.0.0.1:5432/availability_test
+          -Davailability.test.jdbc-user=postgres
+          -Davailability.test.jdbc-password=ci_only_password
