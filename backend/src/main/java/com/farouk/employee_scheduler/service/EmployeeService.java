@@ -120,5 +120,16 @@ public class EmployeeService {
         return employeeRepository.save(employee);
     }
 
+    public Employee findByUserId(String userId) {
+
+        UUID userUUID = UUID.fromString(userId);
+
+        return employeeRepository.findByUser_Id(userUUID)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Employee not found for user ID: " + userId
+                ));
+    }
+
 
 }
