@@ -14,6 +14,20 @@ export function GenerateSchedule({ scheduleId, week, onClose, onSaved, existingS
   const [requirements, setRequirements] = useState<(StaffingRequirement & { key: number })[]>([
     { key: 0, date: week, startTime: "09:00", endTime: "17:00", requiredEmployees: 1 },
   ]);
+  const [source, setSource] = useState<"manual" | "ai">("manual");
+  const [instructions, setInstructions] = useState("");
+  const [reviewed, setReviewed] = useState(false);
+  const interpretation = useMutation({
+    mutationFn: () => api.interpretInstructions(scheduleId, instructions),
+    onSuccess: data => {
+      setReviewed(false); setValidation("");
+      setRequirements(data.requirements.map((row, index) => ({ ...row, key: index })));
+      setNextKey(data.requirements.length);
+      // These are visible planning defaults, never attributed to the model.
+      setMaxHours(data.maxWeeklyHours ?? 40);
+      setFair(data.balanceHoursFairly ?? true);
+    },
+  });
   const [nextKey, setNextKey] = useState(1);
   const [maxHours, setMaxHours] = useState(40);
   const [fair, setFair] = useState(true);
@@ -30,10 +44,13 @@ export function GenerateSchedule({ scheduleId, week, onClose, onSaved, existingS
   const apply = useAction((suggestionIds: string[]) => api.applyGenerated(scheduleId, {
     previewToken: preview.data!.previewToken, suggestionIds,
   }), onSaved);
-  const pending = preview.isPending || apply.isPending;
+  const pending = preview.isPending || apply.isPending || interpretation.isPending;
   const edit = () => { setPhase("requirements"); setValidation(""); apply.reset(); preview.reset(); };
   const generate = () => {
     setValidation("");
+    if (!requirements.length || (source === "ai" && (!interpretation.data || !reviewed))) {
+      setValidation("Interpret instructions, resolve questions in the editable requirements, and confirm your review first."); return;
+    }
     if (!Number.isInteger(maxHours) || maxHours < 1 || maxHours > 168 || requirements.some(r =>
       r.date < week || r.date > addDays(week, 6) || !validRange(r.startTime, r.endTime) ||
       !Number.isInteger(r.requiredEmployees) || r.requiredEmployees < 1 || r.requiredEmployees > 50)) {
@@ -59,13 +76,34 @@ export function GenerateSchedule({ scheduleId, week, onClose, onSaved, existingS
     });
   };
   const change = (key: number, patch: Partial<StaffingRequirement>) =>
-    setRequirements(rows => rows.map(row => row.key === key ? { ...row, ...patch } : row));
+    { setReviewed(false); setRequirements(rows => rows.map(row => row.key === key ? { ...row, ...patch } : row)); };
   const data = preview.data;
   return <Modal wide title="Generate schedule" onClose={() => { if (!pending) onClose(); }}>
     <div className="modal-body generation-panel">
       <p className="muted">Plan staffing for this draft week. Previewing saves no shifts; applying keeps existing assignments and does not publish.</p>
       {phase === "requirements" ? <form id="generation-form" onSubmit={event => { event.preventDefault(); generate(); }}>
         <fieldset disabled={pending}>
+          <label>Requirement entry<select value={source} onChange={e => { setSource(e.target.value as "manual" | "ai"); setReviewed(false); }}>
+            <option value="manual">Manual entry</option><option value="ai">AI instructions</option>
+          </select></label>
+          {source === "ai" && <section aria-label="AI staffing interpretation">
+            <p className="notice">AI drafts requirements only. Instructions are sent to Groq. Do not include employee names, credentials or sensitive information.</p>
+            <label>Scheduling instructions<textarea maxLength={4000} value={instructions} onChange={e => {
+              setInstructions(e.target.value); setReviewed(false); interpretation.reset();
+            }} /></label>
+            <Button type="button" disabled={!instructions.trim() || pending} onClick={() => { setReviewed(false); interpretation.mutate(); }}>Interpret instructions</Button>
+            {interpretation.isPending && <Loading label="Interpreting instructions…" />}
+            <ErrorNotice error={interpretation.error} />
+            {interpretation.data && <>
+              <h3>Review AI interpretation</h3><p>{interpretation.data.summary}</p>
+              {interpretation.data.clarificationQuestions.map((q, i) => <p className="notice" key={`question-${i}`}>{q}</p>)}
+              {interpretation.data.unsupportedConstraints.map((q, i) => <p className="notice error" key={`unsupported-${i}`}>{q}</p>)}
+              <p className="small muted">Resolve questions by refining and interpreting again, or manually adding/editing the requirements below. Unsupported constraints will not be enforced.</p>
+              <p className="small muted">{interpretation.data.maxWeeklyHours === null ? "No weekly hours cap was specified. The form uses a 40-hour planning default; review it." : "Weekly hours cap was explicitly requested."} {interpretation.data.balanceHoursFairly === null ? "Fairness was not specified. Balancing is a form default; review it." : "Fairness preference was explicitly requested."}</p>
+              <label className="generation-check"><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} />I reviewed the requirements and planning defaults, resolved questions, and accept the listed limitations.</label>
+            </>}
+          </section>}
+
           {requirements.map((row, index) => <section className="generation-requirement" key={row.key}>
             <h3>Requirement {index + 1}</h3>
             <label>Scheduling mode {index + 1}<select value={row.mode || "FIXED"} onChange={e => change(row.key, { mode: e.target.value as "FIXED" | "FLEXIBLE" })}>
@@ -80,20 +118,20 @@ export function GenerateSchedule({ scheduleId, week, onClose, onSaved, existingS
               <label>{row.mode === "FLEXIBLE" ? "Window start" : "Start time"} {index + 1}<input type="time" step="1" value={row.startTime} required onChange={e => change(row.key, { startTime: e.target.value })} /></label>
               <label>{row.mode === "FLEXIBLE" ? "Window end" : "End time"} {index + 1}<input type="time" step="1" value={row.endTime} required onChange={e => change(row.key, { endTime: e.target.value })} /></label>
             </div>
-            <Button type="button" variant="ghost" disabled={requirements.length === 1} onClick={() => setRequirements(rows => rows.filter(r => r.key !== row.key))}>Remove requirement {index + 1}</Button>
+            <Button type="button" variant="ghost" disabled={requirements.length === 1} onClick={() => { setReviewed(false); setRequirements(rows => rows.filter(r => r.key !== row.key)); }}>Remove requirement {index + 1}</Button>
           </section>)}
           <Button type="button" variant="secondary" disabled={requirements.length >= 100} onClick={() => {
-            setRequirements(rows => [...rows, { key: nextKey, date: week, startTime: "09:00", endTime: "17:00", requiredEmployees: 1 }]); setNextKey(k => k + 1);
+            setReviewed(false); setRequirements(rows => [...rows, { key: nextKey, date: week, startTime: "09:00", endTime: "17:00", requiredEmployees: 1 }]); setNextKey(k => k + 1);
           }}>Add requirement</Button>
           {flexible && <>
             <div className="form-grid">
-              <label>Minimum flexible shift minutes<input type="number" min="1" max="1440" value={minShiftMinutes} required onChange={e => setMinShiftMinutes(Number(e.target.value))} /></label>
-              <label>Maximum flexible shift minutes<input type="number" min="1" max="1440" value={maxShiftMinutes} required onChange={e => setMaxShiftMinutes(Number(e.target.value))} /></label>
+              <label>Minimum flexible shift minutes<input type="number" min="1" max="1440" value={minShiftMinutes} required onChange={e => { setReviewed(false); setMinShiftMinutes(Number(e.target.value)); }} /></label>
+              <label>Maximum flexible shift minutes<input type="number" min="1" max="1440" value={maxShiftMinutes} required onChange={e => { setReviewed(false); setMaxShiftMinutes(Number(e.target.value)); }} /></label>
             </div>
             <p className="small muted">New flexible shifts must meet these lengths within availability, the window and remaining weekly hours. Short fragments cause shortages. Defaults are planning preferences, not legal or break rules.</p>
           </>}
-          <label>Maximum weekly hours per employee<input type="number" min="1" max="168" value={maxHours} required onChange={e => setMaxHours(Number(e.target.value))} /></label>
-          <label className="generation-check"><input type="checkbox" checked={fair} onChange={e => setFair(e.target.checked)} />Balance hours fairly</label>
+          <label>Maximum weekly hours per employee<input type="number" min="1" max="168" value={maxHours} required onChange={e => { setReviewed(false); setMaxHours(Number(e.target.value)); }} /></label>
+          <label className="generation-check"><input type="checkbox" checked={fair} onChange={e => { setReviewed(false); setFair(e.target.checked); }} />Balance hours fairly</label>
         </fieldset>
       </form> : data && <>
         <h3>{phase === "confirm" ? "Confirm selected assignments" : "Review suggestions"}</h3>
@@ -130,7 +168,7 @@ export function GenerateSchedule({ scheduleId, week, onClose, onSaved, existingS
       <Button variant="secondary" disabled={pending} onClick={onClose}>Cancel</Button>
       {phase === "confirm" && <Button variant="secondary" disabled={pending} onClick={() => setPhase("preview")}>Back to suggestions</Button>}
       {phase !== "requirements" && <Button variant="secondary" disabled={pending} onClick={edit}>Edit requirements</Button>}
-      {phase === "requirements" ? <Button type="submit" form="generation-form" disabled={pending}>{preview.isPending ? "Generating…" : "Generate preview"}</Button> :
+      {phase === "requirements" ? <Button type="submit" form="generation-form" disabled={pending || !requirements.length || (source === "ai" && (!interpretation.data || !reviewed))}>{preview.isPending ? "Generating…" : "Generate preview"}</Button> :
         phase === "preview" ? <Button disabled={!selected.length || pending} onClick={() => setPhase("confirm")}>Review selection</Button> :
         <Button disabled={!selected.length || pending} onClick={() => {
           if (Date.now() >= Date.parse(data!.expiresAt)) { setValidation("Preview expired. Edit requirements and generate a new preview."); return; }

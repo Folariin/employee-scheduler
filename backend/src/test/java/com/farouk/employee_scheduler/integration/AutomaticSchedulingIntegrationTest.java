@@ -24,6 +24,14 @@ import static org.junit.jupiter.api.Assertions.*;
 @EnabledIfSystemProperty(named="availability.test.jdbc-url",matches=".+")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AutomaticSchedulingIntegrationTest {
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods=false)
+    static class LlmConfig {
+        @org.springframework.context.annotation.Bean @org.springframework.context.annotation.Primary
+        com.farouk.employee_scheduler.service.llm.StaffingInterpreter testInterpreter() {
+            return org.mockito.Mockito.mock(com.farouk.employee_scheduler.service.llm.StaffingInterpreter.class);
+        }
+    }
+
     private final LocalDate monday=LocalDate.of(2026,10,26);
     private ConfigurableApplicationContext context;private HttpClient http;private String base,adminToken,employeeToken;
     private final ObjectMapper json=new ObjectMapper();
@@ -32,7 +40,7 @@ class AutomaticSchedulingIntegrationTest {
     private Employee alice,bob;private JdbcTemplate jdbc;
     @BeforeAll void start() {
         String url=System.getProperty("availability.test.jdbc-url");assertTrue(url.matches("jdbc:postgresql://[^/]+/availability_test(?:\\?.*)?"));
-        context=new SpringApplicationBuilder(EmployeeSchedulerApplication.class,SchedulingTestDatabaseConfig.class).run(
+        context=new SpringApplicationBuilder(EmployeeSchedulerApplication.class,SchedulingTestDatabaseConfig.class,LlmConfig.class).run(
             "--server.port=0","--server.address=127.0.0.1","--spring.datasource.url="+url,
             "--spring.datasource.username="+System.getProperty("availability.test.jdbc-user","postgres"),
             "--spring.datasource.password="+System.getProperty("availability.test.jdbc-password",""),
@@ -72,6 +80,28 @@ class AutomaticSchedulingIntegrationTest {
     private String selection(JsonNode preview){
         var ids=new ArrayList<String>();for(var assignment:preview.get("assignments"))ids.add(assignment.get("suggestionId").asString());
         return json.writeValueAsString(Map.of("previewToken",preview.get("previewToken").asString(),"suggestionIds",ids));
+    }
+    @Test void interpretationUsesOnlySelectedWeekAndNeverWritesOrCreatesPreview() throws Exception {
+        var provider=context.getBean(com.farouk.employee_scheduler.service.llm.StaffingInterpreter.class);
+        org.mockito.Mockito.reset(provider);
+        String output="""
+          {"requirements":[{"day":"TUESDAY","startTime":"09:00","endTime":"17:00","requiredEmployees":2,"mode":"FIXED"}],
+          "maxWeeklyHours":null,"maxWeeklyHoursEvidence":null,"balanceHoursFairly":null,"fairnessEvidence":null,
+          "clarificationQuestions":[],"unsupportedConstraints":[],"summary":"Two full Tuesday shifts."}
+          """;
+        org.mockito.Mockito.when(provider.interpret(org.mockito.Mockito.eq(monday),org.mockito.Mockito.anyString())).thenReturn(output);
+        Shift existing=shifts.saveAndFlush(new Shift(schedule,alice,monday,LocalTime.of(9,0),LocalTime.NOON));
+        var before=jdbc.queryForList("select * from shift order by id");
+        var result=send("interpret","{\"instructions\":\"Two full shifts Tuesday 9 AM to 5 PM\"}");status(200,result);
+        assertEquals("2026-10-27",json.readTree(result.body()).get("requirements").get(0).get("date").asString());
+        assertEquals(before,jdbc.queryForList("select * from shift order by id"));assertTrue(shifts.existsById(existing.getId()));
+        assertEquals(2,employees.count());assertEquals(2,users.count());assertEquals(14,availability.count());assertEquals(1,schedules.count());
+        assertEquals(ScheduleStatus.DRAFT,schedules.findById(schedule.getId()).orElseThrow().getStatus());
+        status(401,send(path("interpret"),"{}",null));status(403,send(path("interpret"),"{}",employeeToken));
+        status(404,send("/api/admin/schedules/"+UUID.randomUUID()+"/interpret","{\"instructions\":\"test\"}",adminToken));
+        status(200,send("publish",null));status(409,send("interpret","{\"instructions\":\"test\"}"));
+        org.mockito.Mockito.verify(provider).interpret(monday,"Two full shifts Tuesday 9 AM to 5 PM");
+        org.mockito.Mockito.verifyNoMoreInteractions(provider);
     }
     @Test void previewIsReadOnlyAndDeterministicAndDoesNotExposeAccountData() throws Exception {
         var first=preview(2);var second=preview(2);assertEquals(first.get("assignments"),second.get("assignments"));

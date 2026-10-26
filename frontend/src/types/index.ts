@@ -117,3 +117,12 @@ export interface ApplyGenerationRequest {
   previewToken: string;
   suggestionIds: string[];
 }
+
+export interface InterpretationResponse {
+  requirements: StaffingRequirement[];
+  maxWeeklyHours: number | null;
+  balanceHoursFairly: boolean | null;
+  clarificationQuestions: string[];
+  unsupportedConstraints: string[];
+  summary: string;
+}

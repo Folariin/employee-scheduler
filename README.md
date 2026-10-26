@@ -194,3 +194,7 @@ Admins can generate and review staffing suggestions for draft weeks, then apply 
 ### Flexible generated shifts
 
 Automatic scheduling now supports per-requirement `FIXED` (default) and `FLEXIBLE` modes. Fixed specifies exact times; flexible treats them as a staffing window and chooses individual times within recorded availability. A flexible count means **distinct employees working sometime in the window, not simultaneous or continuous coverage**. Defaults for new flexible shifts are 120–480 minutes and can be configured per preview. Existing assignments, weekly caps, secure preview/apply, and published-week restrictions remain intact. See [scheduling documentation](docs/automatic-scheduling.md) for staggered examples, scoring, shortages, one-interval-per-day availability limitations and future continuous-coverage/policy work. No database migration or new table was added.
+
+### AI staffing instructions
+
+Optional ADMIN-only Groq interpretation is available from Generate schedule. It drafts editable FIXED/FLEXIBLE requirements; preview, apply and publication remain explicit manager actions. See [configuration, examples, privacy and limitations](docs/llm-scheduling.md). No API key belongs in the frontend.

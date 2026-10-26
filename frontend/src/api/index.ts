@@ -1,5 +1,6 @@
 import { request } from "./client";
 import type {
+  InterpretationResponse,
   GenerationRequest,
   GenerationPreview,
   ApplyGenerationRequest,
@@ -48,6 +49,8 @@ export const api = {
       `/admin/schedules/${encodeURIComponent(id)}/publish`,
       "POST",
     ),
+  interpretInstructions: (id: string, instructions: string) =>
+    request<InterpretationResponse>(`/admin/schedules/${encodeURIComponent(id)}/interpret`, "POST", { instructions }),
   generatePreview: (id: string, data: GenerationRequest) =>
     request<GenerationPreview>(`/admin/schedules/${encodeURIComponent(id)}/generate-preview`, "POST", data),
   applyGenerated: (id: string, data: ApplyGenerationRequest) =>

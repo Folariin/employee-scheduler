@@ -165,3 +165,7 @@ Run backend checks using the existing Maven wrapper and guarded disposable `avai
 Future work could index candidate lookups, support continuous-coverage constraints, and add separately reviewed organization-specific duration/break policies. Multi-interval daily availability would require its own approved model/migration. A constraint optimizer could be evaluated once those requirements are defined; no global optimality is claimed. No LLM, payroll, shift swap, time-off approval, notifications, automatic publishing, migrations, deployment or CD is included.
 
 Flexible-mode tests additionally cover staggered/different durations, cross-employee overlap, minimum/maximum durations, missing/outside availability, exact remaining-hour truncation, fractional availability rounding, distinct existing-worker counting, configurable-duration cache binding, flexible atomic rollback/retry, concurrency and frontend mode switching/preview calendar behavior.
+
+## Optional AI instructions
+
+The same manual/preview/apply flow supports interpreting manager text through a backend-only Groq provider. Read [AI staffing instructions](llm-scheduling.md) for configuration, interpretation rules, nullable policies, review gates and limitations. Interpretation never writes assignments or publishes.
