@@ -43,6 +43,12 @@ The weekly calendar displays assigned shifts with employee names and individual 
 
 ![Published weekly calendar showing named employees and assigned shift times across seven days](docs/screenshots/weekly-schedule.jpg)
 
+### Employee Dashboard
+
+Employees have a personalized dashboard displaying upcoming shifts, assigned hours, scheduled days, and a weekly calendar of their published assignments.
+
+![Employee dashboard showing upcoming shifts, assigned hours, scheduled days, and published weekly assignments](docs/screenshots/employee-dashboard.jpg)
+
 ### AI-Assisted Scheduling
 
 Administrators describe staffing needs in natural language. Groq interprets those instructions into editable requirements; the deterministic backend generates suggestions using availability, existing assignments, hour limits, and the fairness preference. Managers review requirements and previews before explicitly applying shifts and publishing separately.
