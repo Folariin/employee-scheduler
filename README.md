@@ -2,9 +2,9 @@
 
 ## Project overview
 
-A full-stack workforce scheduling application built with React, Spring Boot, and PostgreSQL. Administrators manage employees, plan weekly staffing, review generated suggestions, and publish schedules. Employees view their own published shifts and maintain recurring availability.
+Employee Scheduler is a full-stack **AI-assisted workforce scheduling application** built with React, Spring Boot, and PostgreSQL. Groq interprets natural-language staffing instructions into structured requirements; a deterministic backend algorithm generates shift suggestions using recorded availability, existing assignments, weekly-hour limits, and an optional fairness preference.
 
-A deterministic planner handles assignment decisions. Optional AI assists with requirement entry; managers explicitly review, apply, and publish the results.
+Administrators can also schedule manually. Managers review requirements and generated suggestions, explicitly apply selected shifts to a draft, and publish when ready. Employees use a personal workspace to view their own published shifts and manage recurring availability. AI assists with requirement entry, while assignment decisions and validation remain in the backend.
 
 ## Key features
 
@@ -100,11 +100,35 @@ Preview writes no shifts to PostgreSQL. Applying selections is transactional, re
 
 ## AI-assisted scheduling
 
-Groq interprets manager text into structured requirements. For example:
+Groq converts manager instructions into editable staffing requirements for the selected week. **FIXED** requests exact full-window shifts; **FLEXIBLE** allows individual, potentially shorter shifts within a window. See the [comparison and two-employee example](#fixed-vs-flexible) above.
 
-> Two employees working the full 9 AM to 5 PM shift on Tuesday.
+### Example prompt
 
-Explicit full shifts map to FIXED; instructions allowing different shifts within a window can map to FLEXIBLE. Missing counts/times or ambiguous modes produce clarification questions. Unsupported constraints are surfaced. Weekly-hour and fairness options stay unset unless explicitly requested.
+Open a draft week, choose **AI instructions** in Generate schedule, and paste:
+
+```text
+For the selected week, use FLEXIBLE scheduling and request 2 distinct
+employees per day:
+- Monday through Friday: 9 AM to 9 PM each day.
+- Saturday and Sunday: 10 AM to 6 PM each day.
+
+Employees may work different, shorter shifts within each day's window.
+Respect each employee's recorded availability and avoid overlapping their
+existing assignments. Cap each employee's total working hours at 40 for
+the week, including existing assignments. Distribute hours fairly by
+preferring employees with fewer assigned hours in this week.
+
+The daily target is 2 distinct employees working sometime in the window;
+it is not a requirement for 2 employees to be on duty at every moment.
+```
+
+Review the interpretation for seven FLEXIBLE daily requirements, each requesting two distinct employees, a 40-hour weekly cap, and enabled fairness. Weekdays resolve against the selected schedule. Recorded availability, non-overlap, and the cap are enforced by the deterministic backend, not by Groq. Review the flexible minimum/maximum shift lengths in the form; the prompt does not set them. Existing assignments are preserved rather than shortened to repair an already exceeded cap. Fairness is a greedy preference, not a guarantee of equal hours, and shortages may remain.
+
+**FLEXIBLE does not guarantee simultaneous or continuous staffing coverage.** The prompt's daily count is a distinct-worker target, not a promise to staff every moment of the window.
+
+The AI path follows **interpret → review → preview → apply → publish**: interpret instructions; resolve clarification questions and edit/acknowledge requirements and defaults; generate a preview; review shortages and select suggestions; explicitly apply the selection to the draft; then publish separately. Interpretation and preview save no shifts, and applying does not publish. The [scheduling workflow](#scheduling-workflow) below describes the shared manual and AI review steps.
+
+Missing counts/times or ambiguous modes produce clarification questions. Unsupported constraints are surfaced. Weekly-hour and fairness options stay unset unless explicitly requested.
 
 **The LLM does not optimize schedules, choose employees, assign shifts, or write scheduling records.** The backend validates its untrusted JSON, and the manager reviews it before invoking the deterministic planner. The application sends instructions, selected-week dates, and interpretation rules/schema; it does not attach roster or availability records. Do not include personal information or secrets in instructions.
 
