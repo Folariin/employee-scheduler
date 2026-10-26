@@ -17,10 +17,10 @@ async function enter(){const user=userEvent.setup();await user.selectOptions(scr
 beforeEach(()=>{session.clear();session.set(auth());});
 it("interprets, reviews, generates and applies only after separate explicit confirmations",async()=>{
  const fetch=vi.fn(async(path:string)=>response(path.endsWith("interpret")?interpreted:path.endsWith("generate-preview")?preview:[shift]));vi.stubGlobal("fetch",fetch);const saved=mount();const user=await enter();
- await screen.findByText(interpreted.summary);expect(fetch).toHaveBeenCalledOnce();expect(fetch.mock.calls[0][0]).toBe("/api/admin/schedules/week-1/interpret");
+ await screen.findByText(interpreted.summary);expect(screen.getByText("Staffing requirements").closest("li")).toHaveAttribute("aria-current","step");expect(screen.getByLabelText("Scheduling instructions")).toHaveAccessibleDescription(/Include days/);expect(fetch).toHaveBeenCalledOnce();expect(fetch.mock.calls[0][0]).toBe("/api/admin/schedules/week-1/interpret");
  expect(screen.getByText(/No weekly hours cap was specified/)).toBeVisible();expect(screen.getByLabelText("Scheduling mode 1")).toHaveValue("FLEXIBLE");
  expect(screen.getByRole("button",{name:"Generate preview"})).toBeDisabled();await user.click(screen.getByRole("checkbox",{name:/I reviewed/}));
- await user.click(screen.getByRole("button",{name:"Generate preview"}));await screen.findByRole("heading",{name:"Review suggestions"});expect(fetch).toHaveBeenCalledTimes(2);
+ await user.click(screen.getByRole("button",{name:"Generate preview"}));await screen.findByRole("heading",{name:"Review suggestions"});expect(screen.getByText("Review preview").closest("li")).toHaveAttribute("aria-current","step");expect(fetch).toHaveBeenCalledTimes(2);
  await user.click(screen.getByRole("button",{name:"Review selection"}));expect(fetch).toHaveBeenCalledTimes(2);expect(saved).not.toHaveBeenCalled();
  await user.click(screen.getByRole("button",{name:"Apply to draft"}));await waitFor(()=>expect(saved).toHaveBeenCalledOnce());expect(fetch.mock.calls[2][0]).toBe("/api/admin/schedules/week-1/apply-generated");
 });

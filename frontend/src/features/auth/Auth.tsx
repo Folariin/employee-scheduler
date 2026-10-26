@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CalendarDays, ShieldCheck } from "lucide-react";
 import { session } from "./session";
 import { api } from "../../api";
@@ -11,6 +11,11 @@ export const useSession = () =>
   useSyncExternalStore(session.subscribe, session.get);
 export const homeFor = (role: Role) =>
   role === "ADMIN" ? "/admin/dashboard" : "/employee/dashboard";
+export function useEmployeeProfile() {
+  const active = useSession();
+  return useQuery({ queryKey: ["my-profile", active?.userId], queryFn: api.myProfile,
+    enabled: active?.role === "EMPLOYEE", retry: false, staleTime: 60000 });
+}
 export function SessionLifecycle() {
   const active = useSession();
   const client = useQueryClient();
@@ -133,8 +138,8 @@ export function Login() {
             <CalendarDays size={27} />
           </span>
           <p className="eyebrow">WELCOME TO YOUR WORKSPACE</p>
-          <h2>Good to see you.</h2>
-          <p>Sign in to plan your team’s next great week.</p>
+          <h2>Welcome back</h2>
+          <p>Sign in to your scheduling workspace.</p>
           {location.state?.expired && (
             <div className="notice">
               Please sign in to continue. Sessions are kept only while this tab

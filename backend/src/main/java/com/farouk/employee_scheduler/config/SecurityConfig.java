@@ -93,6 +93,8 @@ public class SecurityConfig {
                         // Availability is managed only by the authenticated employee.
                         .requestMatchers("/api/availability/**").hasRole("EMPLOYEE")
 
+                        .requestMatchers("/api/employees/**").hasRole("EMPLOYEE")
+
                         .requestMatchers("/api/shifts/me", "/api/schedules/me").hasRole("EMPLOYEE")
 
                         // Everything else requires login

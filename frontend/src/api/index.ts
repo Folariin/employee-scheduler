@@ -26,6 +26,8 @@ const rangeQuery = (range: DateRange = {}) => {
 export const api = {
   login: (email: string, password: string) =>
     request<AuthResponse>("/auth/login", "POST", { email, password }),
+  myProfile: () => request<{ firstName: string; lastName: string }>("/employees/me"),
+  employeeAvailability: (id: string) => request<Availability[]>(`/admin/employees/${encodeURIComponent(id)}/availability`),
   employees: () => request<Employee[]>("/admin/employees"),
   employee: (id: string) =>
     request<Employee>(`/admin/employees/${encodeURIComponent(id)}`),

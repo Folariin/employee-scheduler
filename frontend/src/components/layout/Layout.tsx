@@ -12,10 +12,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { session } from "../../features/auth/session";
-import { useSession } from "../../features/auth/Auth";
+import { useSession, useEmployeeProfile } from "../../features/auth/Auth";
 import { Button } from "../ui";
 export function Layout() {
   const active = useSession();
+  const profile = useEmployeeProfile();
+  const employeeName = [profile.data?.firstName, profile.data?.lastName].filter(Boolean).join(" ") || "Employee";
   const [open, setOpen] = useState(false);
   const location = useLocation();
   useEffect(() => {
@@ -75,6 +77,7 @@ export function Layout() {
         variant="secondary"
         aria-label="Open navigation"
         aria-expanded={open}
+        aria-controls="workspace-navigation"
         onClick={() => setOpen(true)}
       >
         <Menu size={22} />
@@ -147,8 +150,8 @@ export function Layout() {
           <div className="sidebar-user">
             <span className="avatar">{admin ? "AD" : "ME"}</span>
             <span>
-              <strong>{admin ? "Administrator" : "Employee"}</strong>
-              <small>{active.email || "Signed in securely"}</small>
+              <strong>{admin ? "Administrator" : employeeName}</strong>
+              <small>{admin ? "Administrator" : "Employee"}</small>
             </span>
           </div>
         </div>
@@ -166,7 +169,7 @@ export function Layout() {
             <span className="divider" />
             <span className="avatar small-avatar">{admin ? "AD" : "ME"}</span>
             <span>
-              <strong>{admin ? "Admin workspace" : "My workspace"}</strong>
+              <strong>{admin ? "Admin workspace" : employeeName}</strong>
               <small>{admin ? "Administrator" : "Employee"}</small>
             </span>
           </div>

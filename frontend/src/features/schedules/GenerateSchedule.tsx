@@ -1,3 +1,4 @@
+import { Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../../api";
@@ -80,28 +81,35 @@ export function GenerateSchedule({ scheduleId, week, onClose, onSaved, existingS
   const data = preview.data;
   return <Modal wide title="Generate schedule" onClose={() => { if (!pending) onClose(); }}>
     <div className="modal-body generation-panel">
+      <ol className="flow-steps" aria-label="Schedule generation progress">
+        <li aria-current={phase === "requirements" ? "step" : undefined}><span>01</span> Staffing requirements</li>
+        <li aria-current={phase === "preview" ? "step" : undefined}><span>02</span> Review preview</li>
+        <li aria-current={phase === "confirm" ? "step" : undefined}><span>03</span> Confirm assignments</li>
+      </ol>
       <p className="muted">Plan staffing for this draft week. Previewing saves no shifts; applying keeps existing assignments and does not publish.</p>
       {phase === "requirements" ? <form id="generation-form" onSubmit={event => { event.preventDefault(); generate(); }}>
         <fieldset disabled={pending}>
           <label>Requirement entry<select value={source} onChange={e => { setSource(e.target.value as "manual" | "ai"); setReviewed(false); }}>
             <option value="manual">Manual entry</option><option value="ai">AI instructions</option>
           </select></label>
-          {source === "ai" && <section aria-label="AI staffing interpretation">
+          {source === "ai" && <section className="ai-workspace" aria-label="AI staffing interpretation">
+            <div className="ai-heading"><Sparkles size={22} aria-hidden="true" /><div><h3>Describe your staffing plan</h3><p className="small muted">Turn your instructions into requirements you can review and edit.</p></div></div>
             <p className="notice">AI drafts requirements only. Instructions are sent to Groq. Do not include employee names, credentials or sensitive information.</p>
-            <label>Scheduling instructions<textarea maxLength={4000} value={instructions} onChange={e => {
+            <label>Scheduling instructions<textarea aria-describedby="instructions-help" placeholder="For example: Two employees working the full 9 AM to 5 PM shift on Tuesday." maxLength={4000} value={instructions} onChange={e => {
               setInstructions(e.target.value); setReviewed(false); interpretation.reset();
             }} /></label>
+            <div id="instructions-help" className="input-help"><span>Include days, times, employee counts, and full or flexible shifts.</span><span>{instructions.length.toLocaleString()} / 4,000</span></div>
             <Button type="button" disabled={!instructions.trim() || pending} onClick={() => { setReviewed(false); interpretation.mutate(); }}>Interpret instructions</Button>
             {interpretation.isPending && <Loading label="Interpreting instructions…" />}
             <ErrorNotice error={interpretation.error} />
-            {interpretation.data && <>
+            {interpretation.data && <div className="ai-result" aria-live="polite">
               <h3>Review AI interpretation</h3><p>{interpretation.data.summary}</p>
-              {interpretation.data.clarificationQuestions.map((q, i) => <p className="notice" key={`question-${i}`}>{q}</p>)}
-              {interpretation.data.unsupportedConstraints.map((q, i) => <p className="notice error" key={`unsupported-${i}`}>{q}</p>)}
+              {interpretation.data.clarificationQuestions.length > 0 && <section><h4>Needs your clarification</h4><ul>{interpretation.data.clarificationQuestions.map((q, i) => <li key={i}>{q}</li>)}</ul></section>}
+              {interpretation.data.unsupportedConstraints.length > 0 && <section className="notice error"><h4>Outside the scheduling rules</h4><ul>{interpretation.data.unsupportedConstraints.map((q, i) => <li key={i}>{q}</li>)}</ul></section>}
               <p className="small muted">Resolve questions by refining and interpreting again, or manually adding/editing the requirements below. Unsupported constraints will not be enforced.</p>
               <p className="small muted">{interpretation.data.maxWeeklyHours === null ? "No weekly hours cap was specified. The form uses a 40-hour planning default; review it." : "Weekly hours cap was explicitly requested."} {interpretation.data.balanceHoursFairly === null ? "Fairness was not specified. Balancing is a form default; review it." : "Fairness preference was explicitly requested."}</p>
               <label className="generation-check"><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} />I reviewed the requirements and planning defaults, resolved questions, and accept the listed limitations.</label>
-            </>}
+            </div>}
           </section>}
 
           {requirements.map((row, index) => <section className="generation-requirement" key={row.key}>
