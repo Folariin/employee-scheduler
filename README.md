@@ -29,16 +29,25 @@ Availability changes do not automatically change assigned shifts. Self-service r
 
 ## Screenshots
 
-Screenshots are planned; no screenshot files are linked until they exist.
+A look at the administrator workflow: manage the team, describe staffing needs with AI, and review scheduling results before publication.
 
-| Planned screenshot | Focus |
-| --- | --- |
-| Administrator dashboard | Team totals and upcoming schedules |
-| Weekly scheduling | Draft assignments and publication |
-| AI-assisted generation | Instructions, clarifications, and editable requirements |
-| Employee workspace | Personal shifts and weekly availability |
+### Employee Management
 
-<!-- Add relative image links after creating screenshots with synthetic, non-sensitive data. -->
+The searchable team directory brings employee profiles and read-only availability access together, with controls for adding and updating employee accounts.
+
+![Administrator employee directory with fictional team members, profile actions, and availability access](docs/screenshots/employees.jpg)
+
+### Published Weekly Schedule
+
+The weekly calendar displays assigned shifts with employee names and individual time ranges. Published status makes the schedule read-only; employees can access their own assignments.
+
+![Published weekly calendar showing named employees and assigned shift times across seven days](docs/screenshots/weekly-schedule.jpg)
+
+### AI-Assisted Scheduling
+
+Administrators describe staffing needs in natural language. Groq interprets those instructions into editable requirements; the deterministic backend generates suggestions using availability, existing assignments, hour limits, and the fairness preference. Managers review requirements and previews before explicitly applying shifts and publishing separately.
+
+![AI scheduling instructions form with natural-language input, editable staffing requirements, and review steps](docs/screenshots/ai-scheduling.jpg)
 
 ## Tech stack
 
