@@ -48,12 +48,18 @@ export function WeeklyCalendar({
   week,
   shifts,
   employees = [],
+  employeeNames,
+  preview = false,
+  suggestedShiftIds,
   editable = false,
   onSelect,
 }: {
   week: string;
   shifts: Shift[];
   employees?: Employee[];
+  employeeNames?: Record<string, string>;
+  preview?: boolean;
+  suggestedShiftIds?: string[];
   editable?: boolean;
   onSelect?: (shift: Shift) => void;
 }) {
@@ -68,6 +74,7 @@ export function WeeklyCalendar({
   );
   const height = (endHour - startHour) * 50;
   const name = (shift: Shift) => {
+    if (employeeNames?.[shift.employeeId]) return employeeNames[shift.employeeId];
     const employee = employees.find((e) => e.id === shift.employeeId);
     return employee
       ? fullName(employee)
@@ -82,19 +89,20 @@ export function WeeklyCalendar({
           employees.findIndex((employee) => employee.id === shift.employeeId),
         )
       : index + Math.max(0, days.indexOf(shift.shiftDate));
+    const suggested = preview && (suggestedShiftIds?.includes(shift.id) ?? true);
     const content = (
       <>
         <strong>{name(shift)}</strong>
         <span>
           {timeLabel(shift.startTime)} – {timeLabel(shift.endTime)}
         </span>
-        <small>{editable ? "Click to edit" : "Assigned shift"}</small>
+        <small>{suggested ? "Suggested shift" : preview ? "Existing shift" : editable ? "Click to edit" : "Assigned shift"}</small>
       </>
     );
     return editable ? (
       <button
         key={shift.id}
-        className={`shift-card color-${tone % 5}`}
+        className={`shift-card color-${tone % 5}${suggested ? " suggested" : ""}`}
         style={style}
         onClick={() => onSelect?.(shift)}
         aria-label={`Edit ${name(shift)}, ${dateLabel(shift.shiftDate)}, ${timeLabel(shift.startTime)}`}
@@ -104,7 +112,7 @@ export function WeeklyCalendar({
     ) : (
       <div
         key={shift.id}
-        className={`shift-card color-${tone % 5}`}
+        className={`shift-card color-${tone % 5}${suggested ? " suggested" : ""}`}
         style={style}
       >
         {content}

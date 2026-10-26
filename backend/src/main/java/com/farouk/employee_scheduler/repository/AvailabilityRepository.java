@@ -19,4 +19,7 @@ public interface AvailabilityRepository extends JpaRepository<Availability, UUID
             UUID employeeId,
             DayOfWeek dayOfWeek
     );
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_READ)
+    @org.springframework.data.jpa.repository.Query("select e from Availability e order by e.id")
+    java.util.List<Availability> findAllLockedForScheduling();
 }

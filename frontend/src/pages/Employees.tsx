@@ -1,3 +1,5 @@
+import { DAYS } from "../types";
+const dayLabel = (day: string) => day[0] + day.slice(1).toLowerCase();
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -10,7 +12,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { useAction } from "../hooks/queries";
-import { fullName, dateLabel } from "../utils/dates";
+import { timeLabel, fullName, dateLabel } from "../utils/dates";
 import {
   Button,
   Confirm,
@@ -247,8 +249,23 @@ function EmployeeDetails({
     </Modal>
   );
 }
+function EmployeeAvailability({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+  const query = useQuery({ queryKey: ["employee-availability", employee.id], queryFn: () => api.employeeAvailability(employee.id) });
+  return <Modal title={`${fullName(employee)} — weekly availability`} onClose={onClose}>
+    <div className="modal-body"><p className="small muted">Read-only recurring availability. Existing assignments are not changed.</p>
+      {query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <>
+        {!query.data.length && <p className="notice">No recurring availability has been set.</p>}
+        <dl className="detail-list">{DAYS.map(day => {
+          const row = query.data.find(item => item.dayOfWeek === day);
+          return <div key={day}><dt>{dayLabel(day)}</dt><dd>{row ? `${timeLabel(row.startTime)} – ${timeLabel(row.endTime)}` : "Unavailable — no interval set"}</dd></div>;
+        })}</dl>
+      </>}
+    </div><div className="modal-footer"><Button variant="secondary" onClick={onClose}>Close</Button></div>
+  </Modal>;
+}
 export function Employees() {
   const query = useQuery({ queryKey: ["employees"], queryFn: api.employees });
+  const [availabilityEmployee, setAvailabilityEmployee] = useState<Employee | null>(null);
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<"create" | Employee | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
@@ -270,8 +287,8 @@ export function Employees() {
     <>
       <PageHeader
         eyebrow="PEOPLE & TEAMS"
-        title="Your team, all together."
-        description="A good week starts with the right people."
+        title="Employees"
+        description="Manage employee accounts and contact details in one place."
       >
         <Button onClick={() => setModal("create")}>
           <Plus size={18} />
@@ -361,6 +378,7 @@ export function Employees() {
                     <td>{employee.phoneNumber || "—"}</td>
                     <td>
                       <div className="row-actions">
+                        <Button variant="secondary" aria-label={`View ${fullName(employee)} availability`} onClick={() => setAvailabilityEmployee(employee)}>Availability</Button>
                         <Button
                           variant="ghost"
                           aria-label={`View ${fullName(employee)}`}
@@ -394,6 +412,7 @@ export function Employees() {
           </div>
         )}
       </section>
+      {availabilityEmployee && <EmployeeAvailability employee={availabilityEmployee} onClose={() => setAvailabilityEmployee(null)} />}
       {modal && (
         <EmployeeForm
           employee={modal === "create" ? undefined : modal}

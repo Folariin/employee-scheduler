@@ -40,7 +40,7 @@ function backend() {
 it("redirects unauthenticated protected pages to login", async () => {
   mount("/admin/employees");
   expect(
-    await screen.findByRole("heading", { name: "Good to see you." }),
+    await screen.findByRole("heading", { name: "Welcome back" }),
   ).toBeVisible();
 });
 it("logs in with real contract and renders admin navigation", async () => {
@@ -60,7 +60,7 @@ it("logs in with real contract and renders admin navigation", async () => {
     screen.getByRole("button", { name: "Sign in to workspace" }),
   );
   expect(
-    await screen.findByRole("heading", { name: "A good week starts here." }),
+    await screen.findByRole("heading", { name: "Team overview" }),
   ).toBeVisible();
   expect(screen.getByRole("navigation").textContent).toContain("Employees");
   expect(screen.queryByText("My Availability")).not.toBeInTheDocument();
@@ -106,7 +106,7 @@ it("admin cannot enter employee-only pages", async () => {
   session.set(auth());
   mount("/employee/availability");
   expect(
-    await screen.findByRole("heading", { name: "A good week starts here." }),
+    await screen.findByRole("heading", { name: "Team overview" }),
   ).toBeVisible();
 });
 it("logout clears cached private data and returns to login", async () => {
@@ -117,7 +117,7 @@ it("logout clears cached private data and returns to login", async () => {
   await screen.findByRole("button", { name: "View Alice Rivera" });
   await user.click(screen.getByRole("button", { name: "Sign out" }));
   expect(
-    await screen.findByRole("heading", { name: "Good to see you." }),
+    await screen.findByRole("heading", { name: "Welcome back" }),
   ).toBeVisible();
   expect(session.get()).toBeNull();
   expect(client.getQueryCache().getAll()).toHaveLength(0);
@@ -216,4 +216,32 @@ it("shows loading and API error states", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Service temporarily unavailable",
   );
+});
+
+it("restores employee identity after refresh from the authenticated profile", async () => {
+  const fetch=backend();const original=fetch.getMockImplementation()!;
+  fetch.mockImplementation(async (url:string)=>url==="/api/employees/me"?response({firstName:"Alice",lastName:"Bennett"}):original(url));
+  session.set(auth("EMPLOYEE"));
+  const { restoreSession }=await import("../features/auth/session");restoreSession();mount("/employee/dashboard");
+  expect(await screen.findByRole("heading",{name:"Welcome back, Alice."})).toBeVisible();
+  expect(screen.getAllByText("Alice Bennett")).toHaveLength(2);
+  expect(fetch).toHaveBeenCalledWith("/api/employees/me",expect.objectContaining({headers:expect.objectContaining({Authorization:`Bearer ${session.get()?.token}`})}));
+});
+it("admin reads weekly availability without edit controls", async () => {
+  const fetch=backend();const original=fetch.getMockImplementation()!;
+  fetch.mockImplementation(async (url:string)=>url===`/api/admin/employees/${employee.id}/availability`?response([{id:"av",employeeId:employee.id,dayOfWeek:"MONDAY",startTime:"09:00",endTime:"17:00"}]):original(url));
+  session.set(auth());mount("/admin/employees");const user=userEvent.setup();
+  await user.click(await screen.findByRole("button",{name:`View ${employee.firstName} ${employee.lastName} availability`}));
+  const dialog=screen.getByRole("dialog");expect(await within(dialog).findByText("9:00 AM – 5:00 PM")).toBeVisible();
+  expect(within(dialog).getAllByText("Unavailable — no interval set")).toHaveLength(6);
+  expect(within(dialog).queryByRole("button",{name:/Save|Edit|Delete/})).not.toBeInTheDocument();
+});
+
+it("admin availability empty state is explicit", async () => {
+  const fetch=backend();const original=fetch.getMockImplementation()!;
+  fetch.mockImplementation(async (url:string)=>url===`/api/admin/employees/${employee.id}/availability`?response([]):original(url));
+  session.set(auth());mount("/admin/employees");const user=userEvent.setup();
+  await user.click(await screen.findByRole("button",{name:`View ${employee.firstName} ${employee.lastName} availability`}));
+  expect(await screen.findByText("No recurring availability has been set.")).toBeVisible();
+  expect(screen.getAllByText("Unavailable — no interval set")).toHaveLength(7);
 });

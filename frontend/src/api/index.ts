@@ -1,5 +1,9 @@
 import { request } from "./client";
 import type {
+  InterpretationResponse,
+  GenerationRequest,
+  GenerationPreview,
+  ApplyGenerationRequest,
   AuthResponse,
   Employee,
   CreateEmployee,
@@ -22,6 +26,8 @@ const rangeQuery = (range: DateRange = {}) => {
 export const api = {
   login: (email: string, password: string) =>
     request<AuthResponse>("/auth/login", "POST", { email, password }),
+  myProfile: () => request<{ firstName: string; lastName: string }>("/employees/me"),
+  employeeAvailability: (id: string) => request<Availability[]>(`/admin/employees/${encodeURIComponent(id)}/availability`),
   employees: () => request<Employee[]>("/admin/employees"),
   employee: (id: string) =>
     request<Employee>(`/admin/employees/${encodeURIComponent(id)}`),
@@ -45,6 +51,12 @@ export const api = {
       `/admin/schedules/${encodeURIComponent(id)}/publish`,
       "POST",
     ),
+  interpretInstructions: (id: string, instructions: string) =>
+    request<InterpretationResponse>(`/admin/schedules/${encodeURIComponent(id)}/interpret`, "POST", { instructions }),
+  generatePreview: (id: string, data: GenerationRequest) =>
+    request<GenerationPreview>(`/admin/schedules/${encodeURIComponent(id)}/generate-preview`, "POST", data),
+  applyGenerated: (id: string, data: ApplyGenerationRequest) =>
+    request<Shift[]>(`/admin/schedules/${encodeURIComponent(id)}/apply-generated`, "POST", data),
   createShift: (id: string, data: ShiftRequest) =>
     request<Shift>(
       `/admin/schedules/${encodeURIComponent(id)}/shifts`,

@@ -140,7 +140,7 @@ export function Availability() {
         <div className="panel-heading">
           <h2>
             <Clock3 size={21} />
-            Your weekly rhythm
+            Weekly availability
           </h2>
           <span className="small muted">One interval per weekday</span>
         </div>

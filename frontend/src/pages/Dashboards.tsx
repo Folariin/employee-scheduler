@@ -1,3 +1,4 @@
+import { useEmployeeProfile } from "../features/auth/Auth";
 import { useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -88,8 +89,8 @@ export function AdminDashboard() {
     <>
       <PageHeader
         eyebrow="YOUR TEAM. YOUR TIME."
-        title="A good week starts here."
-        description="Keep your people in sync and your plans moving forward."
+        title="Team overview"
+        description="Review staffing, manage upcoming weeks, and keep your team informed."
       >
         <span className="today-chip">
           <CalendarDays size={16} />
@@ -107,7 +108,7 @@ export function AdminDashboard() {
           tone="blue"
           label="Total employees"
           value={employees.isPending ? "—" : (employees.data?.length ?? "—")}
-          detail="People behind the plan"
+          detail="Registered team members"
         />
         <Stat
           icon={FileText}
@@ -118,7 +119,7 @@ export function AdminDashboard() {
               ? "—"
               : all.filter((s) => s.status === "DRAFT").length
           }
-          detail="A work in progress"
+          detail="Awaiting publication"
         />
         <Stat
           icon={Check}
@@ -129,7 +130,7 @@ export function AdminDashboard() {
               ? "—"
               : all.filter((s) => s.status === "PUBLISHED").length
           }
-          detail="Ready for your team"
+          detail="Visible to assigned employees"
         />
         <Stat
           icon={CalendarDays}
@@ -188,7 +189,7 @@ export function AdminDashboard() {
         </section>
         <section className="panel">
           <div className="panel-heading">
-            <h2>Make your next move</h2>
+            <h2>Workspace actions</h2>
           </div>
           <div className="quick-actions">
             <Button onClick={() => setCreating(true)}>
@@ -260,6 +261,7 @@ export function AdminDashboard() {
   );
 }
 export function EmployeeDashboard() {
+  const profile = useEmployeeProfile();
   const today = localDate();
   const week = mondayOf();
   const upcoming = useQuery({
@@ -277,7 +279,7 @@ export function EmployeeDashboard() {
     <>
       <PageHeader
         eyebrow="A LITTLE CLARITY FOR YOUR WEEK"
-        title="Welcome to your workspace."
+        title={profile.data?.firstName ? `Welcome back, ${profile.data.firstName}.` : "Welcome to your workspace."}
         description="Your upcoming shifts and availability, all in one place."
       >
         <Link className="button secondary" to="/employee/schedule">

@@ -4,8 +4,8 @@ import { api } from "../api";
 import { request, ApiError } from "../api/client";
 import { auth, response } from "./fixtures";
 beforeEach(() => session.clear());
-describe("typed API and ephemeral session", () => {
-  it("attaches bearer tokens without persisting credentials", async () => {
+describe("typed API and tab session", () => {
+  it("attaches bearer tokens with tab-scoped persistence", async () => {
     session.set(auth("EMPLOYEE"));
     const fetch = vi.fn().mockImplementation(async () => response([]));
     vi.stubGlobal("fetch", fetch);
@@ -19,7 +19,7 @@ describe("typed API and ephemeral session", () => {
       }),
     );
     expect(localStorage.length).toBe(0);
-    expect(sessionStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(1);
   });
   it("uses only me routes for employee data", async () => {
     session.set(auth("EMPLOYEE"));
